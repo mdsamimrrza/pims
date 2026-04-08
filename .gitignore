@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+Frontend/node_modules/
+
+# Build outputs
+dist/
+build/
+Frontend/dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Backend runtime artifacts
+Backend/__pycache__/
+Backend/.venv/
+Backend/venv/
+Backend/*.sqlite3
+Backend/*.db
