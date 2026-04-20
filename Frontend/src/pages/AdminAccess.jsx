@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthLayout from '../layouts/AuthLayout';
 import AppIcon from '../components/AppIcon';
@@ -31,7 +31,7 @@ export default function AdminAccess() {
     };
   }, [lockState.isLocked]);
 
-  const lockCountdownText = useMemo(() => {
+  const lockCountdownText = (() => {
     if (!lockState.isLocked) {
       return '';
     }
@@ -40,7 +40,7 @@ export default function AdminAccess() {
     const minutes = Math.floor(remainingMs / 60000);
     const seconds = Math.floor((remainingMs % 60000) / 1000);
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
-  }, [lockState.isLocked, lockState.lockUntil]);
+  })();
 
   const handleSubmit = (event) => {
     event.preventDefault();

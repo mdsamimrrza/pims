@@ -2224,6 +2224,14 @@ textarea {
 }
 
 @media (min-width: 1101px) {
+  .sidebar {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow: hidden;
+  }
+
   .sidebar-toggle-mobile {
     display: none;
   }
