@@ -5,7 +5,8 @@ Frontend/node_modules/
 # Build outputs
 dist/
 build/
-Frontend/dist/
+!Frontend/dist/
+!Frontend/dist/**
 
 # Environment files
 .env
