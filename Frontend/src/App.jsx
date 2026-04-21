@@ -7,6 +7,7 @@ import ResetPassword from './pages/ResetPassword';
 import { SESSION_EXPIRED_EVENT } from './api/pimsApi';
 import { clearAuthState, hydrateAuthSession } from './store/slices/authSlice';
 import { pushToast } from './store/slices/toastSlice';
+import { setTheme } from './store/slices/themeSlice';
 import ToastViewport from './components/ToastViewport';
 import { getRoleAccessPath } from './utils/session';
 
@@ -15,7 +16,13 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const authStatus = useSelector((state) => state.auth.status);
+  const themeMode = useSelector((state) => state.theme.mode);
   const lastSessionExpiredAt = useRef(0);
+
+  // Initialize theme on app load
+  useEffect(() => {
+    dispatch(setTheme(themeMode));
+  }, [dispatch, themeMode]);
 
   useEffect(() => {
     if (authStatus === 'idle') {

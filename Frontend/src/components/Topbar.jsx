@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import AppIcon from './AppIcon';
+import DarkModeToggle from './DarkModeToggle';
 import { getPageTitle } from '../constants/navigation';
 import { ROLE_LABELS, ROLES } from '../constants/roles';
 import { roleProfiles } from '../data/mockData';
@@ -68,9 +69,13 @@ export default function Topbar({ showMenuToggle = false, onMenuToggle, isSidebar
             <button aria-label="Notifications" className="icon-button" type="button">
               <AppIcon name="bell" size={20} />
             </button>
+            <DarkModeToggle />
           </>
         ) : (
-          <span className="badge badge-accent">Patient Portal</span>
+          <>
+            <span className="badge badge-accent">Patient Portal</span>
+            <DarkModeToggle />
+          </>
         )}
         <div className="profile-chip">
           <div>

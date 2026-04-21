@@ -5,6 +5,7 @@ import authReducer from './slices/authSlice';
 import inventoryReducer from './slices/inventorySlice';
 import prescriptionsReducer from './slices/prescriptionsSlice';
 import toastReducer from './slices/toastSlice';
+import themeReducer from './slices/themeSlice';
 
 export const store = configureStore({
   reducer: {
@@ -13,6 +14,7 @@ export const store = configureStore({
     auth: authReducer,
     inventory: inventoryReducer,
     prescriptions: prescriptionsReducer,
-    toast: toastReducer
+    toast: toastReducer,
+    theme: themeReducer
   }
 });
