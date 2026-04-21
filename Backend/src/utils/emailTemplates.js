@@ -1,4 +1,4 @@
-export const buildInviteEmail = ({ firstName, lastName, email, role, password }) => {
+export const buildInviteEmail = ({ firstName, lastName, email, role, password, loginUrl }) => {
   const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || email
   const html = `
     <h1>PIMS Account Created</h1>
@@ -10,6 +10,7 @@ export const buildInviteEmail = ({ firstName, lastName, email, role, password })
       <li><strong>Password:</strong> ${password}</li>
     </ul>
     <p>Sign in from the PIMS frontend and change your password when needed.</p>
+    ${loginUrl ? `<p><a href="${loginUrl}">${loginUrl}</a></p>` : ''}
   `.trim()
 
   const text = [
@@ -18,8 +19,9 @@ export const buildInviteEmail = ({ firstName, lastName, email, role, password })
     `Email: ${email}`,
     `Role: ${role}`,
     `Password: ${password}`,
+    loginUrl ? `Login link: ${loginUrl}` : null,
     'Sign in from the PIMS frontend and change your password when needed.',
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 
   return {
     subject: 'Your PIMS account is ready',

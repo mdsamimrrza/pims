@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppIcon from '../components/AppIcon';
 import {
-  createPatient,
   createPrescription,
   getApiMessage,
   listMedicines,
   listPatients
 } from '../api/pimsApi';
 import useDebouncedValue from '../hooks/useDebouncedValue';
+import useToast from '../hooks/useToast';
 import { getStoredDisplayName } from '../utils/session';
 
 function createPrescriptionItem(medicine) {
@@ -35,14 +35,14 @@ function parseAllergies(value) {
 }
 
 function generatePatientRecordId() {
-  return `P-${Date.now().toString().slice(-6)}`;
+  return `PAT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`;
 }
 
-function getValidation(items, patient) {
-  if (!patient.name || !patient.dob || !patient.recordId) {
+function getValidation(items, patient, selectedPatientDbId) {
+  if (!selectedPatientDbId && (!patient.name || !patient.dob || !patient.email)) {
     return {
       title: 'Needs Patient Info',
-      detail: 'Patient ID, name, and date of birth are required before submission.',
+      detail: 'Patient name, date of birth, and email are required for a new patient.',
       tone: 'status-pill status-warning'
     };
   }
@@ -64,13 +64,15 @@ function getValidation(items, patient) {
 
 export default function Prescription() {
   const [patient, setPatient] = useState({
-    recordId: '',
+    recordId: generatePatientRecordId(),
     name: '',
     dob: '',
     gender: 'Male',
+    email: '',
     allergiesText: ''
   });
   const [selectedPatientDbId, setSelectedPatientDbId] = useState('');
+  const [selectedPatientHasPortal, setSelectedPatientHasPortal] = useState(false);
   const [medicineQuery, setMedicineQuery] = useState('');
   const [patientSuggestions, setPatientSuggestions] = useState([]);
   const [medicineResults, setMedicineResults] = useState([]);
@@ -80,6 +82,7 @@ export default function Prescription() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [items, setItems] = useState([]);
+  const { notifySuccess, notifyWarning } = useToast();
 
   const debouncedMedicineQuery = useDebouncedValue(medicineQuery, 300);
   const debouncedPatientQuery = useDebouncedValue(`${patient.recordId} ${patient.name}`.trim(), 350);
@@ -139,15 +142,18 @@ export default function Prescription() {
     };
   }, [debouncedPatientQuery]);
 
-  const validation = useMemo(() => getValidation(items, patient), [items, patient]);
+  const validation = useMemo(() => getValidation(items, patient, selectedPatientDbId), [items, patient, selectedPatientDbId]);
+  const needsPortalInviteEmail = Boolean(selectedPatientDbId) && !selectedPatientHasPortal && !patient.email;
 
   const selectPatient = (entry) => {
     setSelectedPatientDbId(entry._id);
+    setSelectedPatientHasPortal(Boolean(entry.userId));
     setPatient({
       recordId: entry.patientId,
       name: entry.name,
       dob: entry.dob ? new Date(entry.dob).toISOString().slice(0, 10) : '',
       gender: entry.gender || 'Other',
+      email: '',
       allergiesText: (entry.allergies || []).map((allergy) => allergy.substance).join(', ')
     });
     setMessage(`Loaded patient record ${entry.patientId}.`);
@@ -155,7 +161,10 @@ export default function Prescription() {
   };
 
   const updatePatientField = (field, value) => {
-    setSelectedPatientDbId('');
+    if (field === 'recordId' || field === 'name') {
+      setSelectedPatientDbId('');
+      setSelectedPatientHasPortal(false);
+    }
     setPatient((current) => ({ ...current, [field]: value }));
   };
 
@@ -185,6 +194,18 @@ export default function Prescription() {
   };
 
   const handleSubmit = async () => {
+    if (validation.title !== 'Clear') {
+      setMessage('');
+      setErrorMessage(validation.detail);
+      return;
+    }
+
+    if (needsPortalInviteEmail) {
+      setMessage('');
+      setErrorMessage('Patient email is required to create the portal invite for this existing patient.');
+      return;
+    }
+
     setIsSubmitting(true);
     setMessage('');
     setErrorMessage('');
@@ -193,20 +214,25 @@ export default function Prescription() {
       let patientDbId = selectedPatientDbId;
 
       if (!patientDbId) {
-        const patientPayload = {
-          patientId: patient.recordId || generatePatientRecordId(),
-          name: patient.name,
-          dob: patient.dob,
-          gender: patient.gender,
-          allergies: parseAllergies(patient.allergiesText)
-        };
-
-        const createdPatient = await createPatient(patientPayload);
-        patientDbId = createdPatient?.patient?._id;
+        patientDbId = '';
       }
 
       const prescriptionPayload = {
-        patientId: patientDbId,
+        ...(patientDbId
+          ? {
+              patientId: patientDbId,
+              patientEmail: patient.email,
+            }
+          : {
+              patient: {
+                patientId: patient.recordId,
+                name: patient.name,
+                dob: patient.dob,
+                gender: patient.gender,
+                email: patient.email,
+                allergies: parseAllergies(patient.allergiesText)
+              }
+            }),
         diagnosis: 'Generated from frontend prescription workflow',
         isUrgent: urgent,
         allowRefills: allowRefills ? 3 : 0,
@@ -223,10 +249,36 @@ export default function Prescription() {
 
       const response = await createPrescription(prescriptionPayload);
       const createdPrescription = response?.prescription;
+      const patientPortal = response?.patientPortal;
+      const createdPatientDbId = patientPortal?.patient?._id || patientDbId;
+
+      if (patientPortal?.access) {
+        const loginDetails = patientPortal.access.password
+          ? `Email: ${patientPortal.access.email}. Temporary password: ${patientPortal.access.password}.`
+          : `Email: ${patientPortal.access.email}. Existing account - no new password generated.`;
+
+        notifySuccess('Patient portal created', `${patient.name} can sign in from ${patientPortal.access.loginUrl}. ${loginDetails}`, 6000);
+
+        if (patientPortal.user?.inviteEmail && !patientPortal.user.inviteEmail.delivered) {
+          notifyWarning(
+            'Invite email not delivered',
+            'SMTP is not delivering the invite right now. Share the login details manually or fix SMTP settings.',
+            7000
+          );
+        }
+      }
+
+      if (patientPortal?.patient?.patientId) {
+        setPatient((current) => ({
+          ...current,
+          recordId: patientPortal.patient.patientId,
+        }));
+      }
 
       setMessage(`Prescription ${createdPrescription?.rxId || ''} submitted to pharmacy successfully.`);
       setItems([]);
-      setSelectedPatientDbId(patientDbId);
+      setSelectedPatientDbId(createdPatientDbId);
+      setSelectedPatientHasPortal(Boolean(patientPortal?.user));
     } catch (error) {
       setErrorMessage(getApiMessage(error, 'Failed to submit prescription'));
     } finally {
@@ -266,10 +318,10 @@ export default function Prescription() {
           <div className="field-grid">
             <div className="field-grid two">
               <label className="field-label">
-                <span>Patient ID</span>
+                <span>Patient ID / Search</span>
                 <input
                   onChange={(event) => updatePatientField('recordId', event.target.value)}
-                  placeholder="e.g. P-123456"
+                  placeholder="Search existing patient by ID, or use generated ID for new patient"
                   value={patient.recordId}
                 />
               </label>
@@ -303,6 +355,15 @@ export default function Prescription() {
                 </select>
               </label>
             </div>
+            <label className="field-label">
+              <span>Patient Email for Login {selectedPatientDbId && !selectedPatientHasPortal ? '(required for portal invite)' : ''}</span>
+              <input
+                onChange={(event) => updatePatientField('email', event.target.value)}
+                placeholder="patient@example.com"
+                type="email"
+                value={patient.email}
+              />
+            </label>
             <label className="field-label">
               <span>Allergies</span>
               <input

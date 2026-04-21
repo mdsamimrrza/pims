@@ -70,9 +70,24 @@ Optional:
 - `ENABLE_BACKGROUND_JOBS` (`false` disables interval jobs)
 - `LOW_STOCK_JOB_INTERVAL_MS` — Interval for low stock check job
 - `EXPIRY_JOB_INTERVAL_MS` — Interval for expiry check job
-- `EMAIL_MODE` (`file` or `disabled`) — Email output mode for alerts
-- `EMAIL_OUTBOX_DIR` (default: `outbox`) — Directory for email artifacts
+- `EMAIL_MODE` (`file`, `smtp`, or `disabled`) — Email output mode for alerts
+- `EMAIL_OUTBOX_DIR` (default: `outbox`) — Directory for email artifacts when using `file`
+- `SMTP_HOST` — SMTP server host for real email delivery
+- `SMTP_PORT` (default: `587`) — SMTP server port
+- `SMTP_SECURE` (`true` or `false`, default `false`) — Use TLS from the start of the connection
+- `SMTP_USER` — SMTP username, usually your Gmail address
+- `SMTP_PASS` — SMTP password or Gmail App Password
+- `SMTP_FROM` — Sender address shown in outbound emails, usually the same Gmail address
 - `PHARMACY_NOTIFICATION_EMAIL` — Email for pharmacy alerts
+
+### Gmail SMTP Setup
+
+- Set `EMAIL_MODE=smtp`
+- Use `SMTP_HOST=smtp.gmail.com`
+- Use `SMTP_PORT=587` and `SMTP_SECURE=false`
+- Set `SMTP_USER` to your Gmail address
+- Set `SMTP_PASS` to a Gmail App Password, not your normal login password
+- Set `SMTP_FROM` to the same Gmail address or a display name plus that address
 
 ### MongoDB Atlas Notes
 
@@ -102,6 +117,7 @@ Authorization: Bearer <token>
 ### Key User Management Routes
 
 **User CRUD:**
+
 - `POST /api/users` - Create new user
 - `GET /api/users` - List all users (admin only)
 - `GET /api/users/:id` - Get user by ID
@@ -110,6 +126,7 @@ Authorization: Bearer <token>
 - `DELETE /api/users/:id/permanent` - Permanently delete user from system
 
 **Auth Routes:**
+
 - `POST /api/auth/setup-admin` - One-time first-admin bootstrap (token: `test1234567890` in development)
 - `POST /api/auth/login` - User login (returns JWT)
 - `POST /api/auth/logout` - User logout
@@ -201,8 +218,9 @@ Each job runs once on startup and then on interval.
 ## Email and PDF
 
 - Email service writes JSON payloads to `Backend/outbox/` when `EMAIL_MODE=file`.
+- Email service sends real mail through the configured SMTP server when `EMAIL_MODE=smtp`.
 - Invite emails are used for admin-created users.
-- Password reset and password change confirmations also use the file outbox.
+- Password reset and password change confirmations use the same configured email mode.
 - Prescription PDF endpoint returns a generated PDF buffer.
 
 ## Tests

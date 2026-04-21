@@ -42,7 +42,6 @@ const patientSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      default: null,
       unique: true,
       sparse: true,
     },

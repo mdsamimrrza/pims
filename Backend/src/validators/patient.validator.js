@@ -65,7 +65,6 @@ export const validateCreatePatient = createValidator((req) => {
   const errors = []
   const body = req.body || {}
 
-  requireNonEmptyString(errors, 'patientId', body.patientId)
   requireNonEmptyString(errors, 'name', body.name)
   requireDate(errors, 'dob', body.dob)
   optionalEnum(errors, 'gender', body.gender, GENDERS)

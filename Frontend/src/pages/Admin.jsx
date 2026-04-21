@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import AppIcon from '../components/AppIcon';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 import useToast from '../hooks/useToast';
-import { createPatientPortalAccount, getApiMessage, listPatients } from '../api/pimsApi';
+import { createMedicine, createPatientPortalAccount, getApiMessage, listPatients } from '../api/pimsApi';
 import {
   clearAdminUsersError,
   createAdminUser,
@@ -46,6 +46,17 @@ const emptyPortalForm = {
   password: 'Temp123!'
 };
 
+const emptyMedicineForm = {
+  name: '',
+  genericName: '',
+  atcCode: '',
+  brand: '',
+  strength: '',
+  dosageForm: 'Tablet',
+  manufacturer: '',
+  mrp: ''
+};
+
 const emptyPatientLookup = {
   query: '',
   results: [],
@@ -70,7 +81,9 @@ export default function Admin() {
   const [limit, setLimit] = useState(20);
   const [form, setForm] = useState(emptyForm);
   const [portalForm, setPortalForm] = useState(emptyPortalForm);
+  const [medicineForm, setMedicineForm] = useState(emptyMedicineForm);
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
+  const [isMedicineModalOpen, setIsMedicineModalOpen] = useState(false);
   const [patientLookup, setPatientLookup] = useState(emptyPatientLookup);
   const { notifyError, notifySuccess } = useToast();
   const debouncedQuery = useDebouncedValue(searchQuery, 300);
@@ -181,6 +194,21 @@ export default function Admin() {
     };
   }, [debouncedPatientLookup, isPortalModalOpen]);
 
+  useEffect(() => {
+    if (!isMedicineModalOpen) {
+      return undefined;
+    }
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsMedicineModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isMedicineModalOpen]);
+
   const summary = useMemo(() => ({
     total: pagination.total,
     active: users.filter((user) => user.isActive).length,
@@ -199,6 +227,10 @@ export default function Admin() {
 
   const updatePortalForm = (field, value) => {
     setPortalForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateMedicineForm = (field, value) => {
+    setMedicineForm((current) => ({ ...current, [field]: value }));
   };
 
   const selectPatientLookup = (patient) => {
@@ -254,6 +286,26 @@ export default function Admin() {
       );
     } catch (error) {
       notifyError('Patient portal creation failed', String(error || 'Failed to create patient portal account'));
+    }
+  };
+
+  const handleCreateMedicine = async (event) => {
+    event.preventDefault();
+
+    try {
+      const medicine = await createMedicine({
+        ...medicineForm,
+        mrp: medicineForm.mrp === '' ? 0 : Number(medicineForm.mrp),
+      });
+
+      setMedicineForm(emptyMedicineForm);
+      setIsMedicineModalOpen(false);
+      notifySuccess(
+        'Medicine created',
+        `${medicine?.name || medicineForm.name || 'Medicine'} is now available for inventory batches.`
+      );
+    } catch (error) {
+      notifyError('Medicine creation failed', String(error || 'Failed to create medicine'));
     }
   };
 
@@ -342,6 +394,10 @@ export default function Admin() {
         <button className="button-secondary" onClick={() => setIsPortalModalOpen(true)} type="button">
           <AppIcon name="users" size={16} />
           Create Patient Portal
+        </button>
+        <button className="button-primary" onClick={() => setIsMedicineModalOpen(true)} type="button">
+          <AppIcon name="plusCircle" size={16} />
+          Add Medicine
         </button>
       </div>
 
@@ -706,6 +762,84 @@ export default function Admin() {
               </button>
               <button className="button-primary" type="submit">
                 Create Portal Account
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {isMedicineModalOpen ? (
+        <div className="user-modal-backdrop">
+          <form aria-labelledby="create-medicine-title" aria-modal="true" className="user-modal" onSubmit={handleCreateMedicine} role="dialog">
+            <div className="toolbar">
+              <div className="page-title">
+                <div className="section-title">
+                  <AppIcon name="plusCircle" size={20} />
+                  <h3 id="create-medicine-title">Create Medicine</h3>
+                </div>
+                <p className="helper-text">Add a medicine record such as Paracetamol before creating inventory batches.</p>
+              </div>
+              <button className="button-ghost" onClick={() => setIsMedicineModalOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+
+            <div className="field-grid">
+              <div className="field-grid two">
+                <label className="field-label">
+                  <span>Medicine Name</span>
+                  <input onChange={(event) => updateMedicineForm('name', event.target.value)} required value={medicineForm.name} placeholder="Paracetamol" />
+                </label>
+                <label className="field-label">
+                  <span>Generic Name</span>
+                  <input onChange={(event) => updateMedicineForm('genericName', event.target.value)} required value={medicineForm.genericName} placeholder="Paracetamol" />
+                </label>
+              </div>
+              <div className="field-grid two">
+                <label className="field-label">
+                  <span>ATC Code</span>
+                  <input onChange={(event) => updateMedicineForm('atcCode', event.target.value)} required value={medicineForm.atcCode} placeholder="N02BE01" />
+                </label>
+                <label className="field-label">
+                  <span>Dosage Form</span>
+                  <select onChange={(event) => updateMedicineForm('dosageForm', event.target.value)} value={medicineForm.dosageForm}>
+                    <option>Tablet</option>
+                    <option>Capsule</option>
+                    <option>Injection</option>
+                    <option>Syrup</option>
+                    <option>Cream</option>
+                    <option>Inhaler</option>
+                  </select>
+                </label>
+              </div>
+              <div className="field-grid two">
+                <label className="field-label">
+                  <span>Brand</span>
+                  <input onChange={(event) => updateMedicineForm('brand', event.target.value)} value={medicineForm.brand} placeholder="Crocin" />
+                </label>
+                <label className="field-label">
+                  <span>Strength</span>
+                  <input onChange={(event) => updateMedicineForm('strength', event.target.value)} value={medicineForm.strength} placeholder="500 mg" />
+                </label>
+              </div>
+              <div className="field-grid two">
+                <label className="field-label">
+                  <span>Manufacturer</span>
+                  <input onChange={(event) => updateMedicineForm('manufacturer', event.target.value)} value={medicineForm.manufacturer} placeholder="Example Pharma Ltd" />
+                </label>
+                <label className="field-label">
+                  <span>MRP</span>
+                  <input onChange={(event) => updateMedicineForm('mrp', event.target.value)} min="0" type="number" value={medicineForm.mrp} placeholder="10" />
+                </label>
+              </div>
+            </div>
+
+            <div className="toolbar">
+              <button className="button-ghost" onClick={() => setIsMedicineModalOpen(false)} type="button">
+                Cancel
+              </button>
+              <button className="button-primary" type="submit">
+                Create Medicine
               </button>
             </div>
           </form>

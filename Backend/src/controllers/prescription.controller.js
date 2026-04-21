@@ -27,18 +27,18 @@ export const getPrescription = async (req, res) => {
 
 export const createNewPrescription = async (req, res) => {
   try {
-    const { patientId, items } = req.body || {}
+    const { patientId, patient, items } = req.body || {}
 
-    if (!patientId || !Array.isArray(items) || items.length === 0) {
-      return sendError(res, 'patientId and at least one item are required', 400)
+    if ((!patientId && !patient) || !Array.isArray(items) || items.length === 0) {
+      return sendError(res, 'patient or patientId and at least one item are required', 400)
     }
 
-    const prescription = await createPrescription({
+    const result = await createPrescription({
       ...(req.body || {}),
       doctorId: req.user.id || req.user._id,
     })
 
-    return sendSuccess(res, { prescription }, 'Prescription created', 201)
+    return sendSuccess(res, result, 'Prescription created', 201)
   } catch (error) {
     return sendError(res, error.message || 'Failed to create prescription', error.statusCode || 500)
   }

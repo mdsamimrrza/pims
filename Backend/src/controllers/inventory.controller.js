@@ -1,5 +1,6 @@
 import {
   createInventoryItem,
+  deleteInventoryItem,
   getInventoryAudit,
   listInventory,
   updateInventoryItem,
@@ -49,5 +50,14 @@ export const updateExistingInventoryItem = async (req, res) => {
     return sendSuccess(res, { item }, 'Inventory item updated')
   } catch (error) {
     return sendError(res, error.message || 'Failed to update inventory item', error.statusCode || 500)
+  }
+}
+
+export const deleteExistingInventoryItem = async (req, res) => {
+  try {
+    const item = await deleteInventoryItem(req.params.id)
+    return sendSuccess(res, { item }, 'Inventory item deleted')
+  } catch (error) {
+    return sendError(res, error.message || 'Failed to delete inventory item', error.statusCode || 500)
   }
 }

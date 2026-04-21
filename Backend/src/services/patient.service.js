@@ -1,6 +1,8 @@
+import crypto from 'crypto'
 import Patient from '../models/Patient.model.js'
 import { createUser } from './user.service.js'
 import { buildPagination, getPagination } from '../utils/pagination.js'
+import { generatePassword } from '../utils/password.js'
 
 const patientNotFound = () => {
   const error = new Error('Patient not found')
@@ -12,6 +14,23 @@ const duplicatePatientError = () => {
   const error = new Error('Patient ID already exists')
   error.statusCode = 409
   return error
+}
+
+const isDuplicateNullUserIdError = (error) => {
+  if (!error || error.code !== 11000) {
+    return false
+  }
+
+  return (
+    String(error.message || '').includes('userId_1') &&
+    String(error.message || '').includes('dup key: { userId: null')
+  )
+}
+
+const generatePatientId = () => {
+  const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const randomPart = crypto.randomBytes(2).toString('hex').toUpperCase()
+  return `PAT-${datePart}-${randomPart}`
 }
 
 const normalizePatientId = (value) => String(value || '').trim().toUpperCase()
@@ -92,14 +111,32 @@ export const getPatientByUserId = async (userId) => {
 }
 
 export const createPatient = async (payload) => {
-  const patientId = normalizePatientId(payload.patientId)
-  const existingPatient = await Patient.findOne({ patientId })
+  let patientId = normalizePatientId(payload.patientId)
 
-  if (existingPatient) {
-    throw duplicatePatientError()
+  if (!patientId) {
+    let existingPatient = null
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      patientId = generatePatientId()
+      existingPatient = await Patient.findOne({ patientId })
+
+      if (!existingPatient) {
+        break
+      }
+    }
+
+    if (existingPatient) {
+      throw duplicatePatientError()
+    }
+  } else {
+    const existingPatient = await Patient.findOne({ patientId })
+
+    if (existingPatient) {
+      throw duplicatePatientError()
+    }
   }
 
-  const patient = await Patient.create({
+  const patientPayload = {
     patientId,
     name: String(payload.name || '').trim(),
     dob: payload.dob,
@@ -107,7 +144,21 @@ export const createPatient = async (payload) => {
     weight: normalizeWeight(payload.weight),
     allergies: normalizeAllergies(payload.allergies),
     medicalHistory: normalizeStringArray(payload.medicalHistory),
-  })
+  }
+
+  let patient = null
+
+  try {
+    patient = await Patient.create(patientPayload)
+  } catch (error) {
+    if (!isDuplicateNullUserIdError(error)) {
+      throw error
+    }
+
+    // Heal old records where userId is persisted as null under unique sparse index.
+    await Patient.updateMany({ userId: null }, { $unset: { userId: 1 } })
+    patient = await Patient.create(patientPayload)
+  }
 
   return patient
 }
@@ -141,12 +192,14 @@ export const createPatientPortalAccount = async (patientId, payload = {}) => {
     throw error
   }
 
+  const password = String(payload.password || generatePassword())
+
   const { firstName, lastName } = splitName(patient.name)
   const user = await createUser({
     firstName: String(payload.firstName || firstName).trim(),
     lastName: String(payload.lastName || lastName).trim(),
     email: payload.email,
-    password: payload.password,
+    password,
     role: 'PATIENT',
     isActive: payload.isActive ?? true,
   })
@@ -158,5 +211,12 @@ export const createPatientPortalAccount = async (patientId, payload = {}) => {
   return {
     patient: linkedPatient,
     user,
+    access: {
+      email: user.email,
+      password,
+      loginUrl: String(process.env.CLIENT_URL || '').replace(/\/+$/, '')
+        ? `${String(process.env.CLIENT_URL || '').replace(/\/+$/, '')}/patient/access`
+        : '/patient/access',
+    },
   }
 }

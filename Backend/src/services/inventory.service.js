@@ -149,6 +149,102 @@ const createAlertFromInventoryItem = async (item) => {
   }
 }
 
+const normalizePrescriptionQuantity = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return 1
+  }
+
+  const quantity = Number(value)
+
+  if (!Number.isFinite(quantity) || quantity < 1) {
+    throw validationError('Prescription quantity must be a positive number')
+  }
+
+  return Math.ceil(quantity)
+}
+
+const buildInventoryConsumptionQuery = (item) => {
+  const query = {
+    currentStock: { $gt: 0 },
+    status: { $ne: 'EXPIRED' },
+  }
+
+  if (item?.medicineId) {
+    query.medicineId = item.medicineId
+    return query
+  }
+
+  const atcCode = normalizeAtcCode(item?.atcCode)
+
+  if (!atcCode) {
+    throw validationError('Each prescription item requires a medicineId or atcCode to consume stock')
+  }
+
+  query.atcCode = atcCode
+  return query
+}
+
+const consumeInventoryForItem = async (item) => {
+  const quantity = normalizePrescriptionQuantity(item?.quantity)
+  const query = buildInventoryConsumptionQuery(item)
+  const batches = await Inventory.find(query).sort({ expiryDate: 1, createdAt: 1 })
+  const availableStock = batches.reduce((total, batch) => total + Number(batch.currentStock || 0), 0)
+  const medicineName = item?.medicineId?.name || item?.medicineId?.genericName || item?.atcCode
+
+  if (availableStock < quantity) {
+    throw validationError(
+      `Insufficient stock for ${medicineName}. Available ${availableStock}, required ${quantity}`
+    )
+  }
+
+  let remaining = quantity
+  const updatedBatches = []
+
+  for (const batch of batches) {
+    if (remaining <= 0) {
+      break
+    }
+
+    const currentStock = Number(batch.currentStock || 0)
+    const consumed = Math.min(currentStock, remaining)
+
+    if (consumed <= 0) {
+      continue
+    }
+
+    batch.currentStock = currentStock - consumed
+    batch.status = resolveInventoryStatus({
+      currentStock: batch.currentStock,
+      threshold: batch.threshold,
+      expiryDate: batch.expiryDate,
+    })
+
+    await batch.save()
+
+    const populatedBatch = await populateInventoryQuery(Inventory.findById(batch._id))
+    await createAlertFromInventoryItem(populatedBatch)
+    updatedBatches.push(populatedBatch)
+    remaining -= consumed
+  }
+
+  return updatedBatches
+}
+
+export const consumeInventoryForPrescriptionItems = async (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return []
+  }
+
+  const affectedBatches = []
+
+  for (const item of items) {
+    const updatedBatches = await consumeInventoryForItem(item)
+    affectedBatches.push(...updatedBatches)
+  }
+
+  return affectedBatches
+}
+
 export const getInventoryStatus = resolveInventoryStatus
 export const syncInventoryAlertsForItem = createAlertFromInventoryItem
 export const getInventoryRiskSummary = getInventoryRiskFlags
@@ -311,4 +407,16 @@ export const updateInventoryItem = async (id, payload) => {
   const populatedItem = await populateInventoryQuery(Inventory.findById(item._id))
   await createAlertFromInventoryItem(populatedItem)
   return populatedItem
+}
+
+export const deleteInventoryItem = async (id) => {
+  ensureObjectId(id, 'inventory id')
+
+  const item = await Inventory.findByIdAndDelete(id)
+
+  if (!item) {
+    throw inventoryNotFound()
+  }
+
+  return item
 }

@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import {
   createInventoryItem,
+  deleteInventoryItem,
   getApiMessage,
   listInventory,
   listMedicines,
@@ -65,6 +66,18 @@ export const updateInventoryBatch = createAsyncThunk(
       return data?.item;
     } catch (error) {
       return thunkApi.rejectWithValue(getApiMessage(error, 'Failed to update inventory item'));
+    }
+  }
+);
+
+export const deleteInventoryBatch = createAsyncThunk(
+  'inventory/deleteInventoryBatch',
+  async (id, thunkApi) => {
+    try {
+      const data = await deleteInventoryItem(id);
+      return data?.item;
+    } catch (error) {
+      return thunkApi.rejectWithValue(getApiMessage(error, 'Failed to delete inventory item'));
     }
   }
 );
@@ -146,6 +159,20 @@ const inventorySlice = createSlice({
       .addCase(updateInventoryBatch.rejected, (state, action) => {
         state.isSubmitting = false;
         state.errorMessage = action.payload || 'Failed to update inventory item';
+      })
+      .addCase(deleteInventoryBatch.pending, (state) => {
+        state.isSubmitting = true;
+      })
+      .addCase(deleteInventoryBatch.fulfilled, (state, action) => {
+        state.isSubmitting = false;
+        state.errorMessage = '';
+        if (action.payload?._id) {
+          state.items = state.items.filter((entry) => entry._id !== action.payload._id);
+        }
+      })
+      .addCase(deleteInventoryBatch.rejected, (state, action) => {
+        state.isSubmitting = false;
+        state.errorMessage = action.payload || 'Failed to delete inventory item';
       });
   }
 });

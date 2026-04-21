@@ -1,8 +1,21 @@
 import User from '../models/User.model.js'
 import { sendInviteEmail } from './email.service.js'
 import { hashPassword } from '../utils/password.js'
+import { ROLES } from '../utils/constants.js'
 
 const markPasswordChangedAt = () => new Date(Date.now() - 1000)
+
+const getRoleAccessUrl = (role) => {
+  const clientUrl = String(process.env.CLIENT_URL || '').replace(/\/+$/, '')
+  const accessPath = {
+    [ROLES.DOCTOR]: '/doctor/access',
+    [ROLES.PHARMACIST]: '/pharmacist/access',
+    [ROLES.ADMIN]: '/admin/access',
+    [ROLES.PATIENT]: '/patient/access',
+  }[role] || '/doctor/access'
+
+  return clientUrl ? `${clientUrl}${accessPath}` : accessPath
+}
 
 const userNotFound = () => {
   const error = new Error('User not found')
@@ -94,19 +107,33 @@ export const createUser = async ({ firstName, lastName, email, password, role, i
     passwordChangedAt: markPasswordChangedAt(),
   })
 
+  let inviteEmail = {
+    delivered: false,
+    mode: 'unknown',
+  }
+
   try {
-    await sendInviteEmail({
+    inviteEmail = await sendInviteEmail({
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
       role: user.role,
       password,
+      loginUrl: getRoleAccessUrl(user.role),
     })
   } catch (error) {
+    inviteEmail = {
+      delivered: false,
+      mode: 'smtp',
+      error: error.message,
+    }
     console.warn(`Failed to write invite email for ${user.email}: ${error.message}`)
   }
 
-  return user.toSafeObject()
+  return {
+    ...user.toSafeObject(),
+    inviteEmail,
+  }
 }
 
 export const updateUser = async (id, updates) => {

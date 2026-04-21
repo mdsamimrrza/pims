@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import {
   createNewInventoryItem,
+  deleteExistingInventoryItem,
   getAllInventory,
   getInventoryAuditReport,
   updateExistingInventoryItem,
@@ -22,5 +23,6 @@ router.get('/audit', requireRole('ADMIN'), validateInventoryQuery, getInventoryA
 router.get('/', requireRole('PHARMACIST'), validateInventoryQuery, getAllInventory)
 router.post('/', requireRole('PHARMACIST'), validateCreateInventoryItem, createNewInventoryItem)
 router.put('/:id', requireRole('PHARMACIST'), validateUpdateInventoryItem, updateExistingInventoryItem)
+router.delete('/:id', requireRole('PHARMACIST'), validateInventoryIdParam, deleteExistingInventoryItem)
 
 export default router

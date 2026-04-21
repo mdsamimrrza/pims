@@ -21,7 +21,7 @@ router.use(verifyToken)
 
 router.get('/', validateMedicineQuery, getAllMedicines)
 router.get('/:id', validateMedicineIdParam, getMedicine)
-router.post('/', requireRole('ADMIN'), validateCreateMedicine, createNewMedicine)
+router.post('/', requireRole('ADMIN', 'PHARMACIST'), validateCreateMedicine, createNewMedicine)
 router.put('/:id', requireRole('ADMIN'), validateUpdateMedicine, updateExistingMedicine)
 router.delete('/:id', requireRole('ADMIN'), validateMedicineIdParam, removeExistingMedicine)
 

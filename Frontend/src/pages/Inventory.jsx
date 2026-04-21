@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import AppIcon from '../components/AppIcon';
+import { createMedicine } from '../api/pimsApi';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 import useToast from '../hooks/useToast';
 import {
   clearInventoryError,
   createInventoryBatch,
+  deleteInventoryBatch,
   fetchInventory,
   fetchInventoryMedicines,
   restockInventoryItem,
@@ -34,6 +36,17 @@ const emptyForm = {
   storage: ''
 };
 
+const emptyMedicineForm = {
+  name: '',
+  genericName: '',
+  atcCode: '',
+  brand: '',
+  strength: '',
+  dosageForm: 'Tablet',
+  manufacturer: '',
+  mrp: ''
+};
+
 export default function Inventory() {
   const dispatch = useDispatch();
   const records = useSelector((state) => state.inventory.items);
@@ -45,8 +58,11 @@ export default function Inventory() {
   const [filter, setFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCreateMedicineModalOpen, setIsCreateMedicineModalOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState('');
+  const [deleteTargetRecordId, setDeleteTargetRecordId] = useState('');
   const [form, setForm] = useState(emptyForm);
+  const [medicineForm, setMedicineForm] = useState(emptyMedicineForm);
   const [editForm, setEditForm] = useState({
     batchId: '',
     currentStock: 0,
@@ -87,6 +103,10 @@ export default function Inventory() {
     setEditForm((current) => ({ ...current, [field]: value }));
   };
 
+  const updateMedicineForm = (field, value) => {
+    setMedicineForm((current) => ({ ...current, [field]: value }));
+  };
+
   const openEditModal = (record) => {
     setEditingRecordId(record._id);
     setEditForm({
@@ -104,6 +124,38 @@ export default function Inventory() {
     setEditingRecordId('');
   };
 
+  const toggleDeleteForRecord = (recordId) => {
+    setDeleteTargetRecordId((current) => (current === recordId ? '' : recordId));
+  };
+
+  const removeInventoryById = async (recordId) => {
+    const record = records.find((entry) => entry._id === recordId);
+    if (!record) {
+      notifyError('Delete failed', 'Inventory item no longer exists.');
+      return;
+    }
+
+    const medicineName = record?.medicineId?.name || record?.atcCode || 'this item';
+    const shouldDelete = window.confirm(`Delete ${medicineName} (${record.batchId}) from inventory?`);
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      dispatch(clearInventoryError());
+      await dispatch(deleteInventoryBatch(record._id)).unwrap();
+      notifySuccess('Inventory deleted', `${medicineName} batch ${record.batchId} was removed.`);
+      setDeleteTargetRecordId('');
+
+      if (editingRecordId === record._id) {
+        closeEditModal();
+      }
+    } catch (error) {
+      notifyError('Delete failed', String(error || 'Failed to delete inventory item'));
+    }
+  };
+
   const restock = async (record) => {
     try {
       dispatch(clearInventoryError());
@@ -116,6 +168,8 @@ export default function Inventory() {
       notifyError('Restock failed', String(error || 'Failed to restock inventory item'));
     }
   };
+
+  const removeInventoryItem = async (record) => removeInventoryById(record._id);
 
   const handleCreateInventory = async (event) => {
     event.preventDefault();
@@ -158,6 +212,25 @@ export default function Inventory() {
     }
   };
 
+  const handleCreateMedicine = async (event) => {
+    event.preventDefault();
+
+    try {
+      dispatch(clearInventoryError());
+      const medicine = await createMedicine({
+        ...medicineForm,
+        mrp: medicineForm.mrp === '' ? 0 : Number(medicineForm.mrp),
+      });
+
+      setMedicineForm(emptyMedicineForm);
+      setIsCreateMedicineModalOpen(false);
+      notifySuccess('Medicine created', `${medicine?.name || 'Medicine'} is now available in the dropdown.`);
+      dispatch(fetchInventoryMedicines({ limit: 100 }));
+    } catch (error) {
+      notifyError('Create medicine failed', String(error || 'Failed to create medicine'));
+    }
+  };
+
   return (
     <section className="page">
       {errorMessage ? (
@@ -197,10 +270,16 @@ export default function Inventory() {
               <option>EXPIRED</option>
             </select>
           </div>
-          <button className="button-primary" onClick={() => setIsModalOpen(true)} type="button">
-            <AppIcon name="plusCircle" size={16} />
-            Add Medicine
-          </button>
+          <div className="toolbar-group">
+            <button className="button-secondary" onClick={() => setIsCreateMedicineModalOpen(true)} type="button">
+              <AppIcon name="plusCircle" size={16} />
+              Create Medicine
+            </button>
+            <button className="button-primary" onClick={() => setIsModalOpen(true)} type="button">
+              <AppIcon name="plusCircle" size={16} />
+              Add Inventory Batch
+            </button>
+          </div>
         </div>
 
         <div className="table-wrap">
@@ -220,8 +299,30 @@ export default function Inventory() {
               {records.map((record) => (
                 <tr key={record._id}>
                   <td>
-                    <strong>{record.medicineId?.name || record.atcCode}</strong>
+                    <button
+                      onClick={() => toggleDeleteForRecord(record._id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        fontSize: 'inherit',
+                        fontWeight: 700,
+                        padding: 0,
+                        textAlign: 'left'
+                      }}
+                      type="button"
+                    >
+                      {record.medicineId?.name || record.atcCode}
+                    </button>
                     <div className="helper-text">{record.medicineId?.manufacturer || 'Unknown manufacturer'}</div>
+                    {deleteTargetRecordId === record._id ? (
+                      <div style={{ marginTop: '0.45rem' }}>
+                        <button className="button-ghost" onClick={() => removeInventoryItem(record)} type="button">
+                          Delete Batch
+                        </button>
+                      </div>
+                    ) : null}
                   </td>
                   <td>{record.atcCode}</td>
                   <td>{record.currentStock}</td>
@@ -282,6 +383,9 @@ export default function Inventory() {
                     </option>
                   ))}
                 </select>
+                <button className="button-secondary" onClick={() => setIsCreateMedicineModalOpen(true)} style={{ marginTop: '0.55rem' }} type="button">
+                  + Create New Medicine
+                </button>
               </label>
               <div className="field-grid two">
                 <label className="field-label">
@@ -368,9 +472,88 @@ export default function Inventory() {
               <button className="button-ghost" onClick={closeEditModal} type="button">
                 Cancel
               </button>
+              <button className="button-ghost" onClick={() => removeInventoryById(editingRecordId)} type="button">
+                Delete Batch
+              </button>
               <button className="button-primary" disabled={isSubmitting} type="submit">
                 {isSubmitting ? 'Updating...' : 'Save Changes'}
               </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {isCreateMedicineModalOpen ? (
+        <div className="user-modal-backdrop">
+          <form className="user-modal" onSubmit={handleCreateMedicine}>
+            <div className="toolbar">
+              <div className="page-title">
+                <div className="section-title">
+                  <AppIcon name="plusCircle" size={20} />
+                  <h3>Create Medicine</h3>
+                </div>
+                <p className="helper-text">Create medicine first, then use it in inventory batches.</p>
+              </div>
+              <button className="button-ghost" onClick={() => setIsCreateMedicineModalOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+
+            <div className="field-grid">
+              <div className="field-grid two">
+                <label className="field-label">
+                  <span>Medicine Name</span>
+                  <input onChange={(event) => updateMedicineForm('name', event.target.value)} required value={medicineForm.name} />
+                </label>
+                <label className="field-label">
+                  <span>Generic Name</span>
+                  <input onChange={(event) => updateMedicineForm('genericName', event.target.value)} required value={medicineForm.genericName} />
+                </label>
+              </div>
+              <div className="field-grid two">
+                <label className="field-label">
+                  <span>ATC Code</span>
+                  <input onChange={(event) => updateMedicineForm('atcCode', event.target.value)} required value={medicineForm.atcCode} />
+                </label>
+                <label className="field-label">
+                  <span>Dosage Form</span>
+                  <select onChange={(event) => updateMedicineForm('dosageForm', event.target.value)} value={medicineForm.dosageForm}>
+                    <option>Tablet</option>
+                    <option>Capsule</option>
+                    <option>Injection</option>
+                    <option>Syrup</option>
+                    <option>Cream</option>
+                    <option>Inhaler</option>
+                  </select>
+                </label>
+              </div>
+              <div className="field-grid two">
+                <label className="field-label">
+                  <span>Brand</span>
+                  <input onChange={(event) => updateMedicineForm('brand', event.target.value)} value={medicineForm.brand} />
+                </label>
+                <label className="field-label">
+                  <span>Strength</span>
+                  <input onChange={(event) => updateMedicineForm('strength', event.target.value)} value={medicineForm.strength} />
+                </label>
+              </div>
+              <div className="field-grid two">
+                <label className="field-label">
+                  <span>Manufacturer</span>
+                  <input onChange={(event) => updateMedicineForm('manufacturer', event.target.value)} value={medicineForm.manufacturer} />
+                </label>
+                <label className="field-label">
+                  <span>MRP</span>
+                  <input min="0" onChange={(event) => updateMedicineForm('mrp', event.target.value)} type="number" value={medicineForm.mrp} />
+                </label>
+              </div>
+            </div>
+
+            <div className="toolbar">
+              <button className="button-ghost" onClick={() => setIsCreateMedicineModalOpen(false)} type="button">
+                Cancel
+              </button>
+              <button className="button-primary" type="submit">Create Medicine</button>
             </div>
           </form>
         </div>

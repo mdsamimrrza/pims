@@ -74,6 +74,7 @@ export default function Reports() {
   const [summary, setSummary] = useState(null);
   const [usageReport, setUsageReport] = useState([]);
   const [fulfillmentReport, setFulfillmentReport] = useState(null);
+  const [isDistributionOpen, setIsDistributionOpen] = useState(false);
   const [pageState, setPageState] = useState({
     isLoading: true,
     errorMessage: ''
@@ -141,6 +142,10 @@ export default function Reports() {
     inventoryItems: summary?.overview?.inventoryItems || 0,
     fulfillmentHours: fulfillmentReport?.fulfillment?.averageFulfillmentHours || 0,
     uptimeMinutes: Math.round((summary?.overview?.uptimeSeconds || 0) / 60)
+  };
+
+  const handleViewFullDistribution = () => {
+    setIsDistributionOpen(true);
   };
 
   const handleExportCsv = () => {
@@ -435,11 +440,63 @@ export default function Reports() {
             ) : null}
           </div>
 
-          <button className="button-secondary" style={{ marginTop: '1rem', width: '100%' }} type="button">
+          <button
+            className="button-secondary"
+            onClick={handleViewFullDistribution}
+            style={{ marginTop: '1rem', width: '100%' }}
+            type="button"
+          >
             View Full Distribution
           </button>
         </section>
       </div>
+
+      {isDistributionOpen ? (
+        <div className="user-modal-backdrop">
+          <section className="user-modal" role="dialog" aria-modal="true" aria-labelledby="atc-full-distribution-title">
+            <div className="toolbar">
+              <div className="page-title">
+                <div className="section-title">
+                  <AppIcon name="atc" size={20} />
+                  <h3 id="atc-full-distribution-title">ATC Full Distribution</h3>
+                </div>
+                <p className="helper-text">Showing all ATC usage records for the selected date range and filter.</p>
+              </div>
+              <button className="button-ghost" onClick={() => setIsDistributionOpen(false)} type="button">
+                Close
+              </button>
+            </div>
+
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>ATC Code</th>
+                    <th>Prescriptions</th>
+                    <th>Urgent Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsage.map((item, index) => (
+                    <tr key={item.atcCode}>
+                      <td>{index + 1}</td>
+                      <td>{item.atcCode}</td>
+                      <td>{Number(item.prescriptions || 0).toLocaleString()}</td>
+                      <td>{Number(item.urgentCount || 0)}</td>
+                    </tr>
+                  ))}
+                  {!filteredUsage.length ? (
+                    <tr>
+                      <td className="helper-text" colSpan="4">No ATC usage data returned for this range.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

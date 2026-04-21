@@ -36,10 +36,10 @@ export const getMyPatientRecord = async (req, res) => {
 
 export const createNewPatient = async (req, res) => {
   try {
-    const { patientId, name, dob } = req.body || {}
+    const { name, dob } = req.body || {}
 
-    if (!patientId || !name || !dob) {
-      return sendError(res, 'patientId, name, and dob are required', 400)
+    if (!name || !dob) {
+      return sendError(res, 'name and dob are required', 400)
     }
 
     const patient = await createPatient(req.body || {})

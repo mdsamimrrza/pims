@@ -7,7 +7,10 @@ import {
   optionalObjectId,
   optionalString,
   requireArray,
+  requireDate,
+  requireEmail,
   requireObjectId,
+  requireNonEmptyString,
 } from './validate.js'
 
 const PRESCRIPTION_STATUSES = ['Pending', 'Processing', 'Filled', 'Cancelled']
@@ -30,6 +33,8 @@ const validatePrescriptionItems = (errors, items) => {
     if (!String(item.dose || '').trim()) {
       errors.push({ field: `items[${index}].dose`, message: 'dose is required' })
     }
+
+    optionalNumberRange(errors, `items[${index}].quantity`, item.quantity, 1, 1000000)
 
     if (!String(item.frequency || '').trim()) {
       errors.push({ field: `items[${index}].frequency`, message: 'frequency is required' })
@@ -72,7 +77,17 @@ export const validateCreatePrescription = createValidator((req) => {
   const errors = []
   const body = req.body || {}
 
-  requireObjectId(errors, 'patientId', body.patientId)
+  if (body.patientId) {
+    requireObjectId(errors, 'patientId', body.patientId)
+  } else {
+    const patient = body.patient || {}
+    requireNonEmptyString(errors, 'patient.name', patient.name)
+    requireDate(errors, 'patient.dob', patient.dob)
+    requireEmail(errors, 'patient.email', patient.email)
+    optionalString(errors, 'patient.gender', patient.gender)
+    optionalString(errors, 'patient.allergiesText', patient.allergiesText)
+  }
+
   requireArray(errors, 'items', body.items)
   optionalString(errors, 'diagnosis', body.diagnosis)
   optionalBoolean(errors, 'isUrgent', body.isUrgent)

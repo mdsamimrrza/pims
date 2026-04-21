@@ -94,6 +94,10 @@ export async function listMedicines(params) {
   return unwrap(await apiClient.get('/medicines', { params }));
 }
 
+export async function createMedicine(payload) {
+  return unwrap(await apiClient.post('/medicines', payload));
+}
+
 export async function getAtcTree() {
   return unwrap(await apiClient.get('/atc/tree'));
 }
@@ -138,6 +142,10 @@ export async function createInventoryItem(payload) {
 
 export async function updateInventoryItem(id, payload) {
   return unwrap(await apiClient.put(`/inventory/${id}`, payload));
+}
+
+export async function deleteInventoryItem(id) {
+  return unwrap(await apiClient.delete(`/inventory/${id}`));
 }
 
 export async function getInventoryAudit(params) {
