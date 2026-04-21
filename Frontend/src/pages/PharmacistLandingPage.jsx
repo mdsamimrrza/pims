@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
+import DarkModeToggle from '../components/DarkModeToggle';
 
 export default function PharmacistLandingPage() {
   return (
@@ -11,7 +12,10 @@ export default function PharmacistLandingPage() {
           </span>
           <strong>RxConnect</strong>
         </div>
-        <Link className="button-ghost" to="/pharmacist/login">Login</Link>
+        <div className="pharmacist-landing-header-actions">
+          <Link className="button-ghost" to="/pharmacist/login">Login</Link>
+          <DarkModeToggle />
+        </div>
       </header>
 
       <main>

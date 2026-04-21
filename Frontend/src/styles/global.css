@@ -958,6 +958,11 @@ textarea {
   background: linear-gradient(180deg, #fbfdff, #f8fbff);
 }
 
+html.dark .detail-highlight {
+  border-left-color: rgba(15, 155, 142, 0.42);
+  background: linear-gradient(180deg, var(--surface-muted), var(--surface));
+}
+
 .detail-metrics {
   display: grid;
   gap: 1rem;
@@ -1040,6 +1045,13 @@ textarea {
   box-shadow: 0 12px 24px rgba(15, 118, 110, 0.28);
 }
 
+html.dark .button-primary {
+  background: linear-gradient(135deg, #0f9b8e, #1dd1a1);
+  color: #ffffff;
+  border: 1px solid rgba(15, 155, 142, 0.4);
+  box-shadow: 0 12px 24px rgba(15, 155, 142, 0.28);
+}
+
 .button-secondary {
   border: 1px solid var(--line-strong);
   background: var(--surface);
@@ -1048,6 +1060,16 @@ textarea {
 
 .button-ghost {
   color: var(--muted);
+}
+
+html.dark .button-ghost {
+  color: var(--muted);
+}
+
+html.dark .button-ghost:hover {
+  color: var(--text);
+  background: rgba(15, 155, 142, 0.08);
+  border-color: var(--line-strong);
 }
 
 .button-primary:hover,
@@ -1059,6 +1081,11 @@ textarea {
 .button-primary:hover {
   background: linear-gradient(135deg, #0f6a64, #0fa596);
   box-shadow: 0 14px 28px rgba(15, 118, 110, 0.34);
+}
+
+html.dark .button-primary:hover {
+  background: linear-gradient(135deg, #10b981, #2dd4a3);
+  box-shadow: 0 14px 28px rgba(15, 155, 142, 0.4);
 }
 
 .button-primary:disabled,
@@ -1252,6 +1279,41 @@ textarea {
 .manage-user-modal {
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   border-color: #cfd9e8;
+}
+
+html.dark .manage-user-modal {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+html.dark .user-modal {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.4);
+}
+
+html.dark .user-modal h2,
+html.dark .user-modal h3,
+html.dark .user-modal strong {
+  color: var(--text);
+}
+
+html.dark .user-modal-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html.dark .manage-user-profile {
+  background: var(--surface-muted);
+  border-color: var(--line);
+}
+
+html.dark .manage-user-meta-item {
+  background: var(--surface-muted);
+  border-color: var(--line);
+}
+
+html.dark .manage-user-meta-item strong {
+  color: var(--text);
 }
 
 .manage-user-profile {
@@ -1528,6 +1590,14 @@ textarea {
   color: #1f6fd6;
 }
 
+.doctor-landing-header-actions,
+.pharmacist-landing-header-actions,
+.patient-landing-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
 .doctor-hero {
   max-width: 740px;
   margin: 0 auto;
@@ -1567,6 +1637,10 @@ textarea {
 }
 
 .doctor-hero-actions .login-submit {
+  width: min(100%, 320px);
+}
+
+.doctor-hero-actions .button-ghost {
   width: min(100%, 320px);
 }
 
@@ -2280,6 +2354,130 @@ html.dark *,
 html.dark *::before,
 html.dark *::after {
   transition: background-color 300ms ease, border-color 300ms ease, color 300ms ease;
+}
+
+/* Global dark mode text colors */
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4,
+html.dark h5,
+html.dark h6 {
+  color: var(--text);
+}
+
+html.dark p {
+  color: var(--text);
+}
+
+html.dark strong {
+  color: var(--text);
+}
+
+html.dark .section-title {
+  color: var(--text);
+}
+
+html.dark .page-title h2,
+html.dark .page-title h3 {
+  color: var(--text);
+}
+
+html.dark .toolbar {
+  background: transparent;
+}
+
+/* Landing page header/footer dark overrides */
+html.dark .doctor-landing-header,
+html.dark .pharmacist-landing-header,
+html.dark .patient-landing-header {
+  background: var(--surface);
+  border-bottom-color: var(--line);
+}
+
+html.dark .doctor-landing-brand,
+html.dark .pharmacist-landing-brand,
+html.dark .patient-landing-brand {
+  color: #60a5fa;
+}
+
+html.dark .doctor-landing-header .button-ghost,
+html.dark .pharmacist-landing-header .button-ghost,
+html.dark .patient-landing-header .button-ghost,
+html.dark .pharmacist-landing-header-actions .button-ghost,
+html.dark .patient-landing-header-actions .button-ghost,
+html.dark .doctor-landing-header-actions .button-ghost {
+  color: var(--text);
+  border: 1px solid var(--line);
+  background: var(--surface-grad);
+}
+
+html.dark .doctor-landing-header .button-ghost:hover,
+html.dark .pharmacist-landing-header .button-ghost:hover,
+html.dark .patient-landing-header .button-ghost:hover,
+html.dark .pharmacist-landing-header-actions .button-ghost:hover,
+html.dark .patient-landing-header-actions .button-ghost:hover,
+html.dark .doctor-landing-header-actions .button-ghost:hover {
+  color: var(--accent);
+  border-color: var(--line-strong);
+}
+
+html.dark .doctor-capability-list,
+html.dark .pharmacist-tool-card,
+html.dark .patient-feature-card,
+html.dark .doctor-highlight-metric {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+html.dark .doctor-capability-item,
+html.dark .doctor-capability-icon,
+html.dark .pharmacist-tool-icon,
+html.dark .patient-feature-icon {
+  border-color: var(--line);
+}
+
+html.dark .doctor-hero-badge,
+html.dark .pharmacist-hero-badge,
+html.dark .patient-hero-badge,
+html.dark .doctor-highlight-tag,
+html.dark .pharmacist-visual-tag,
+html.dark .patient-visual-tag {
+  background: var(--surface-muted);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+html.dark .doctor-highlight-visual,
+html.dark .pharmacist-dispensing-visual,
+html.dark .patient-journey-visual {
+  background: linear-gradient(180deg, rgba(26, 32, 42, 0.95), rgba(20, 24, 41, 0.98));
+  border-color: var(--line);
+}
+
+html.dark .doctor-landing-footer,
+html.dark .pharmacist-landing-footer,
+html.dark .patient-landing-footer,
+html.dark .doctor-landing-copyright,
+html.dark .pharmacist-landing-copyright,
+html.dark .patient-landing-copyright {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+html.dark .doctor-landing-footer h4,
+html.dark .pharmacist-landing-footer h4,
+html.dark .patient-landing-footer h4 {
+  color: var(--text);
+}
+
+html.dark .doctor-landing-footer span,
+html.dark .pharmacist-landing-footer span,
+html.dark .patient-landing-footer span,
+html.dark .doctor-landing-copyright,
+html.dark .pharmacist-landing-copyright,
+html.dark .patient-landing-copyright {
+  color: var(--muted);
 }
 
 .patient-journey-copy {
