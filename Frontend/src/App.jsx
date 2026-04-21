@@ -8,6 +8,7 @@ import { SESSION_EXPIRED_EVENT } from './api/pimsApi';
 import { clearAuthState, hydrateAuthSession } from './store/slices/authSlice';
 import { pushToast } from './store/slices/toastSlice';
 import ToastViewport from './components/ToastViewport';
+import { getRoleAccessPath } from './utils/session';
 
 export default function App() {
   const dispatch = useDispatch();
@@ -23,13 +24,16 @@ export default function App() {
   }, [authStatus, dispatch]);
 
   useEffect(() => {
-    const handleSessionExpired = () => {
+    const handleSessionExpired = (event) => {
       const now = Date.now();
       // Guard against burst 401 responses dispatching duplicate expiry events.
       if (now - lastSessionExpiredAt.current < 1200) {
         return;
       }
       lastSessionExpiredAt.current = now;
+
+      const role = event?.detail?.role;
+      const redirectPath = getRoleAccessPath(role);
 
       dispatch(clearAuthState());
       dispatch(pushToast({
@@ -39,8 +43,8 @@ export default function App() {
         duration: 4200
       }));
 
-      if (location.pathname !== '/login') {
-        navigate('/login', { replace: true, state: { reason: 'session-expired' } });
+      if (location.pathname !== redirectPath) {
+        navigate(redirectPath, { replace: true, state: { reason: 'session-expired' } });
       }
     };
 

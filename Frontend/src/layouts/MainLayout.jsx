@@ -7,7 +7,7 @@ import { getNavigationForRole } from '../constants/navigation';
 import { ROLES } from '../constants/roles';
 import { roleProfiles } from '../data/mockData';
 import { logout } from '../api/pimsApi';
-import { clearSession, getStoredRole } from '../utils/session';
+import { clearSession, getRoleAccessPath, getStoredRole } from '../utils/session';
 import { clearAuthState } from '../store/slices/authSlice';
 
 function navLinkClass({ isActive }) {
@@ -74,6 +74,13 @@ export default function MainLayout({ children }) {
   };
 
   const handleLogout = async () => {
+    const roleAtLogout = getStoredRole() || role;
+    const redirectPath = getRoleAccessPath(roleAtLogout);
+
+    // Move user to a public role access route first, then clear auth state.
+    // This avoids guard redirects briefly forcing /login (doctor access).
+    navigate(redirectPath, { replace: true });
+
     try {
       await logout();
     } catch (_error) {
@@ -81,7 +88,6 @@ export default function MainLayout({ children }) {
     } finally {
       clearSession();
       dispatch(clearAuthState());
-      navigate('/login');
     }
   };
 
@@ -97,7 +103,13 @@ export default function MainLayout({ children }) {
             aria-label="Go to dashboard"
             className="brand-mark"
             onClick={() => {
-              const homeRoute = role === ROLES.DOCTOR ? '/dashboard' : role === ROLES.PHARMACIST ? '/pharmacist' : '/patient';
+              const homeRoute = role === ROLES.DOCTOR
+                ? '/dashboard'
+                : role === ROLES.PHARMACIST
+                  ? '/pharmacist'
+                  : role === ROLES.ADMIN
+                    ? '/admin'
+                    : '/patient';
               navigate(homeRoute);
             }}
             type="button"

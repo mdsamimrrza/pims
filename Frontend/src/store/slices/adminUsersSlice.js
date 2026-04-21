@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { createUser, getApiMessage, listUsers } from '../../api/pimsApi';
+import { createUser, deactivateUser, getApiMessage, listUsers, permanentlyDeleteUser, updateUser } from '../../api/pimsApi';
 
 export const fetchAdminUsers = createAsyncThunk(
   'adminUsers/fetchAdminUsers',
@@ -30,6 +30,42 @@ export const createAdminUser = createAsyncThunk(
       return data?.user || null;
     } catch (error) {
       return thunkApi.rejectWithValue(getApiMessage(error, 'Failed to create user'));
+    }
+  }
+);
+
+export const deactivateAdminUser = createAsyncThunk(
+  'adminUsers/deactivateAdminUser',
+  async (userId, thunkApi) => {
+    try {
+      const data = await deactivateUser(userId);
+      return data?.user || null;
+    } catch (error) {
+      return thunkApi.rejectWithValue(getApiMessage(error, 'Failed to deactivate user'));
+    }
+  }
+);
+
+export const setAdminUserStatus = createAsyncThunk(
+  'adminUsers/setAdminUserStatus',
+  async ({ userId, isActive }, thunkApi) => {
+    try {
+      const data = await updateUser(userId, { isActive });
+      return data?.user || null;
+    } catch (error) {
+      return thunkApi.rejectWithValue(getApiMessage(error, 'Failed to update user status'));
+    }
+  }
+);
+
+export const permanentlyDeleteAdminUser = createAsyncThunk(
+  'adminUsers/permanentlyDeleteAdminUser',
+  async (userId, thunkApi) => {
+    try {
+      const data = await permanentlyDeleteUser(userId);
+      return data?.user || null;
+    } catch (error) {
+      return thunkApi.rejectWithValue(getApiMessage(error, 'Failed to permanently delete user'));
     }
   }
 );
@@ -78,6 +114,39 @@ const adminUsersSlice = createSlice({
       .addCase(createAdminUser.rejected, (state, action) => {
         state.isSubmitting = false;
         state.errorMessage = action.payload || 'Failed to create user';
+      })
+      .addCase(deactivateAdminUser.pending, (state) => {
+        state.isSubmitting = true;
+      })
+      .addCase(deactivateAdminUser.fulfilled, (state) => {
+        state.isSubmitting = false;
+        state.errorMessage = '';
+      })
+      .addCase(deactivateAdminUser.rejected, (state, action) => {
+        state.isSubmitting = false;
+        state.errorMessage = action.payload || 'Failed to deactivate user';
+      })
+      .addCase(setAdminUserStatus.pending, (state) => {
+        state.isSubmitting = true;
+      })
+      .addCase(setAdminUserStatus.fulfilled, (state) => {
+        state.isSubmitting = false;
+        state.errorMessage = '';
+      })
+      .addCase(setAdminUserStatus.rejected, (state, action) => {
+        state.isSubmitting = false;
+        state.errorMessage = action.payload || 'Failed to update user status';
+      })
+      .addCase(permanentlyDeleteAdminUser.pending, (state) => {
+        state.isSubmitting = true;
+      })
+      .addCase(permanentlyDeleteAdminUser.fulfilled, (state) => {
+        state.isSubmitting = false;
+        state.errorMessage = '';
+      })
+      .addCase(permanentlyDeleteAdminUser.rejected, (state, action) => {
+        state.isSubmitting = false;
+        state.errorMessage = action.payload || 'Failed to permanently delete user';
       });
   }
 });

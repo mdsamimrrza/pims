@@ -67,6 +67,24 @@ export function getRoleHomePath(role) {
   }
 }
 
+export function getRoleAccessPath(role) {
+  if (!isValidRole(role)) {
+    return '/doctor/access';
+  }
+
+  switch (role) {
+    case ROLES.PATIENT:
+      return '/patient/access';
+    case ROLES.PHARMACIST:
+      return '/pharmacist/access';
+    case ROLES.ADMIN:
+      return '/admin/access';
+    case ROLES.DOCTOR:
+    default:
+      return '/doctor/access';
+  }
+}
+
 export function setAuthSession({ token, user, rememberDevice = false }) {
   if (token) {
     localStorage.setItem(TOKEN_KEY, token);

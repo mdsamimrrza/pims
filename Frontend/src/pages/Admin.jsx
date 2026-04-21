@@ -7,11 +7,26 @@ import { createPatientPortalAccount, getApiMessage, listPatients } from '../api/
 import {
   clearAdminUsersError,
   createAdminUser,
+  permanentlyDeleteAdminUser,
+  setAdminUserStatus,
   fetchAdminUsers
 } from '../store/slices/adminUsersSlice';
 
 function userStatusClass(isActive) {
   return isActive ? 'status-pill status-success' : 'status-pill status-warning';
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return 'N/A';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'N/A';
+  }
+
+  return date.toLocaleString();
 }
 
 const emptyForm = {
@@ -40,6 +55,7 @@ const emptyPatientLookup = {
 
 export default function Admin() {
   const dispatch = useDispatch();
+  const authUser = useSelector((state) => state.auth.user);
   const users = useSelector((state) => state.adminUsers.items);
   const pagination = useSelector((state) => state.adminUsers.pagination);
   const isLoading = useSelector((state) => state.adminUsers.isLoading);
@@ -49,6 +65,7 @@ export default function Admin() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [managedUser, setManagedUser] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [form, setForm] = useState(emptyForm);
@@ -72,6 +89,17 @@ export default function Admin() {
   }, [dispatch, queryParams]);
 
   useEffect(() => {
+    if (!managedUser?._id) {
+      return;
+    }
+
+    const nextUser = users.find((user) => user._id === managedUser._id);
+    if (!nextUser) {
+      setManagedUser(null);
+    }
+  }, [managedUser, users]);
+
+  useEffect(() => {
     if (!isModalOpen) {
       return undefined;
     }
@@ -85,6 +113,21 @@ export default function Admin() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isModalOpen]);
+
+  useEffect(() => {
+    if (!managedUser) {
+      return undefined;
+    }
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setManagedUser(null);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [managedUser]);
 
   useEffect(() => {
     if (!isPortalModalOpen) {
@@ -143,6 +186,12 @@ export default function Admin() {
     active: users.filter((user) => user.isActive).length,
     inactive: users.filter((user) => !user.isActive).length
   }), [pagination.total, users]);
+
+  const isManagingOwnAccount = useMemo(() => {
+    const currentId = String(authUser?._id || authUser?.id || '');
+    const targetId = String(managedUser?._id || managedUser?.id || '');
+    return Boolean(currentId && targetId && currentId === targetId);
+  }, [authUser, managedUser]);
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -206,6 +255,57 @@ export default function Admin() {
     } catch (error) {
       notifyError('Patient portal creation failed', String(error || 'Failed to create patient portal account'));
     }
+  };
+
+  const handleToggleUserStatus = async (user) => {
+    const nextIsActive = !user?.isActive;
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'this user';
+    const actionLabel = nextIsActive ? 'Activate' : 'Deactivate';
+    const shouldProceed = window.confirm(
+      `${actionLabel} ${fullName}? ${nextIsActive ? 'They will be able to log in again.' : 'This will disable account login access.'}`
+    );
+
+    if (!shouldProceed) {
+      return;
+    }
+
+    try {
+      dispatch(clearAdminUsersError());
+      await dispatch(setAdminUserStatus({ userId: user._id, isActive: nextIsActive })).unwrap();
+      dispatch(fetchAdminUsers(queryParams));
+      notifySuccess(
+        `User ${nextIsActive ? 'activated' : 'deactivated'}`,
+        `${fullName} is now ${nextIsActive ? 'active' : 'inactive'}.`
+      );
+    } catch (error) {
+      notifyError('Status update failed', String(error || 'Failed to update user status'));
+    }
+  };
+
+  const handlePermanentDeleteUser = async (user) => {
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'this user';
+    const warning =
+      `Permanently delete ${fullName}? This cannot be undone.\n\n` +
+      'Recommended: deactivate first, then delete only if you are sure.';
+    const shouldProceed = window.confirm(warning);
+
+    if (!shouldProceed) {
+      return;
+    }
+
+    try {
+      dispatch(clearAdminUsersError());
+      await dispatch(permanentlyDeleteAdminUser(user._id)).unwrap();
+      dispatch(fetchAdminUsers(queryParams));
+      notifySuccess('User permanently deleted', `${fullName} has been removed from the system.`);
+      setManagedUser(null);
+    } catch (error) {
+      notifyError('Permanent delete failed', String(error || 'Failed to permanently delete user'));
+    }
+  };
+
+  const handleSelectUser = (user) => {
+    setManagedUser(user);
   };
 
   return (
@@ -321,22 +421,30 @@ export default function Admin() {
                 <th>Email</th>
                 <th>Status</th>
                 <th>Last Seen</th>
+                <th>Manage</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
-                <tr key={user._id}>
+                <tr
+                  className={managedUser?._id === user._id ? 'is-selected' : ''}
+                  key={user._id}
+                  onClick={() => handleSelectUser(user)}
+                >
                   <td>{user._id}</td>
                   <td>{[user.firstName, user.lastName].filter(Boolean).join(' ')}</td>
                   <td>{user.role}</td>
                   <td>{user.email}</td>
                   <td><span className={userStatusClass(user.isActive)}>{user.isActive ? 'Active' : 'Inactive'}</span></td>
                   <td>{user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}</td>
+                  <td>
+                    <span className="helper-text">Click row</span>
+                  </td>
                 </tr>
               ))}
               {!isLoading && !users.length ? (
                 <tr>
-                  <td className="helper-text" colSpan="6">No users match the current filters.</td>
+                  <td className="helper-text" colSpan="7">No users match the current filters.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -426,6 +534,82 @@ export default function Admin() {
               </button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {managedUser ? (
+        <div className="user-modal-backdrop">
+          <section aria-labelledby="manage-user-title" aria-modal="true" className="user-modal manage-user-modal" role="dialog">
+            <div className="toolbar">
+              <div className="page-title">
+                <div className="section-title">
+                  <AppIcon name="users" size={20} />
+                  <h3 id="manage-user-title">Manage User</h3>
+                </div>
+                <p className="helper-text">Choose an action for the selected user account.</p>
+              </div>
+              <button className="button-ghost" onClick={() => setManagedUser(null)} type="button">
+                Close
+              </button>
+            </div>
+
+            <div className="manage-user-profile">
+              <div>
+                <strong>{[managedUser.firstName, managedUser.lastName].filter(Boolean).join(' ') || managedUser.email}</strong>
+                <div className="helper-text">{managedUser.email}</div>
+              </div>
+              <span className={userStatusClass(managedUser.isActive)}>{managedUser.isActive ? 'Active' : 'Inactive'}</span>
+            </div>
+
+            <div className="manage-user-meta-grid">
+              <div className="manage-user-meta-item">
+                <span className="caption">Role</span>
+                <strong>{managedUser.role}</strong>
+              </div>
+              <div className="manage-user-meta-item">
+                <span className="caption">User ID</span>
+                <span className="helper-text">{managedUser._id}</span>
+              </div>
+              <div className="manage-user-meta-item">
+                <span className="caption">Created At</span>
+                <span className="helper-text">{formatDateTime(managedUser.createdAt)}</span>
+              </div>
+              <div className="manage-user-meta-item">
+                <span className="caption">Updated At</span>
+                <span className="helper-text">{formatDateTime(managedUser.updatedAt)}</span>
+              </div>
+              <div className="manage-user-meta-item">
+                <span className="caption">Last Login</span>
+                <span className="helper-text">{formatDateTime(managedUser.lastLogin)}</span>
+              </div>
+            </div>
+
+            <div className="toolbar manage-user-actions">
+              <button
+                className="button-secondary"
+                disabled={isSubmitting || isManagingOwnAccount}
+                onClick={() => handleToggleUserStatus(managedUser)}
+                type="button"
+              >
+                {managedUser.isActive ? 'Deactivate User' : 'Activate User'}
+              </button>
+              <button
+                className="button-ghost"
+                disabled={isSubmitting || isManagingOwnAccount}
+                onClick={() => handlePermanentDeleteUser(managedUser)}
+                style={{ color: 'var(--danger)' }}
+                type="button"
+              >
+                Delete User Permanently
+              </button>
+            </div>
+
+            {isManagingOwnAccount ? (
+              <div className="manage-user-warning">
+                You are managing your own account. Deactivate and permanent delete are disabled for safety.
+              </div>
+            ) : null}
+          </section>
         </div>
       ) : null}
 

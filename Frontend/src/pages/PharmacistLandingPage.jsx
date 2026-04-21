@@ -27,7 +27,7 @@ export default function PharmacistLandingPage() {
             <Link className="button-primary login-submit" to="/pharmacist/login">
               Sign up - Pharmacist
             </Link>
-            <button className="button-ghost" type="button">Connect to Doctor</button>
+            <Link to="/doctor/access" className="button-ghost">Connect to Doctor</Link>
             <span className="helper-text">Login (existing users)</span>
           </div>
         </section>

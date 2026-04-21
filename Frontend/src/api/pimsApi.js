@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { clearSession, getStoredToken } from '../utils/session';
+import { clearSession, getStoredRole, getStoredToken } from '../utils/session';
 
 export const SESSION_EXPIRED_EVENT = 'pims:session-expired';
 
@@ -21,13 +21,19 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = String(error?.config?.url || '');
+    const isLogoutRequest = requestUrl.includes('/auth/logout');
+
+    if (error.response?.status === 401 && !isLogoutRequest) {
       const hadToken = Boolean(getStoredToken());
       if (hadToken) {
+        const previousRole = getStoredRole();
         clearSession();
 
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+          window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, {
+            detail: { role: previousRole }
+          }));
         }
       }
     }
@@ -172,4 +178,16 @@ export async function listUsers(params) {
 
 export async function createUser(payload) {
   return unwrap(await apiClient.post('/users', payload));
+}
+
+export async function deactivateUser(id) {
+  return unwrap(await apiClient.delete(`/users/${id}`));
+}
+
+export async function updateUser(id, payload) {
+  return unwrap(await apiClient.put(`/users/${id}`, payload));
+}
+
+export async function permanentlyDeleteUser(id) {
+  return unwrap(await apiClient.delete(`/users/${id}/permanent`));
 }

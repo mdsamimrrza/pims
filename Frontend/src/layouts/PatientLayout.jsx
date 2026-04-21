@@ -2,7 +2,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import Topbar from '../components/Topbar';
 import { logout } from '../api/pimsApi';
-import { clearSession, getStoredUser } from '../utils/session';
+import { clearSession, getRoleAccessPath, getStoredUser } from '../utils/session';
+import { ROLES } from '../constants/roles';
 import { clearAuthState } from '../store/slices/authSlice';
 
 export default function PatientLayout({ children }) {
@@ -12,6 +13,11 @@ export default function PatientLayout({ children }) {
   const storedUser = authUser || getStoredUser();
 
   const handleLogout = async () => {
+    const redirectPath = getRoleAccessPath(ROLES.PATIENT);
+
+    // Navigate first so protected-route fallback does not force /login.
+    navigate(redirectPath, { replace: true });
+
     try {
       await logout();
     } catch (_error) {
@@ -19,7 +25,6 @@ export default function PatientLayout({ children }) {
     } finally {
       clearSession();
       dispatch(clearAuthState());
-      navigate('/login');
     }
   };
 

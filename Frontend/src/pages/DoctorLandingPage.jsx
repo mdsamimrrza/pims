@@ -11,7 +11,10 @@ export default function DoctorLandingPage() {
           </span>
           <strong>RxConnect</strong>
         </div>
-        <Link className="button-ghost" to="/doctor/login">Login</Link>
+        <div className="doctor-landing-header-actions">
+          <Link className="button-ghost" to="/pharmacist/access">Pharmacist Portal</Link>
+          <Link className="button-ghost" to="/doctor/login">Login</Link>
+        </div>
       </header>
 
       <main>

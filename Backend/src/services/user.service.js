@@ -143,9 +143,24 @@ export const updateUser = async (id, updates) => {
 export const deleteUser = async (id) => {
   const user = await User.findByIdAndUpdate(
     id,
-    { isActive: false },
+    {
+      isActive: false,
+      passwordChangedAt: markPasswordChangedAt(),
+      passwordResetTokenHash: null,
+      passwordResetTokenExpiresAt: null,
+    },
     { new: true }
   )
+
+  if (!user) {
+    throw userNotFound()
+  }
+
+  return user.toSafeObject()
+}
+
+export const permanentlyDeleteUser = async (id) => {
+  const user = await User.findByIdAndDelete(id)
 
   if (!user) {
     throw userNotFound()
