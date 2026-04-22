@@ -119,7 +119,12 @@ export default function PharmacistDashboard() {
 
           <div className="mini-list">
             {incomingPrescriptions.map((entry) => (
-              <div className={`feed-item ${entry.isUrgent ? 'is-stat' : ''}`.trim()} key={entry._id || entry.id}>
+              <Link
+                className={`feed-item ${entry.isUrgent ? 'is-stat' : ''}`.trim()}
+                key={entry._id || entry.id}
+                style={{ textDecoration: 'none', color: 'inherit', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                to="/prescriptions"
+              >
                 <div>
                   <strong>{entry.rxId}</strong>
                   <div>{entry.patientId?.name || 'Unknown patient'}</div>
@@ -135,7 +140,7 @@ export default function PharmacistDashboard() {
                     {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
             {!incomingPrescriptions.length ? (
               <div className="helper-text">No incoming prescriptions in the queue.</div>

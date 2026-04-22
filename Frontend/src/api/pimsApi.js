@@ -47,7 +47,12 @@ function unwrap(response) {
 }
 
 export function getApiMessage(error, fallback = 'Something went wrong') {
-  return error?.response?.data?.message || error?.message || fallback;
+  const data = error?.response?.data;
+  if (data?.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+    const firstError = data.errors[0];
+    return `${data.message}: ${firstError.field} ${firstError.message}`;
+  }
+  return data?.message || error?.message || fallback;
 }
 
 export async function login(payload) {
@@ -124,6 +129,10 @@ export async function getPrescription(id) {
 
 export async function createPrescription(payload) {
   return unwrap(await apiClient.post('/prescriptions', payload));
+}
+
+export async function updateDraftPrescription(id, payload) {
+  return unwrap(await apiClient.patch(`/prescriptions/${id}`, payload));
 }
 
 export async function updatePrescriptionStatus(id, payload) {

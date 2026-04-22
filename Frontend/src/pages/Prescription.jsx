@@ -3,9 +3,12 @@ import AppIcon from '../components/AppIcon';
 import {
   createPrescription,
   getApiMessage,
+  getPrescription,
   listMedicines,
-  listPatients
+  listPatients,
+  updateDraftPrescription
 } from '../api/pimsApi';
+import { useParams, useNavigate } from 'react-router-dom';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 import useToast from '../hooks/useToast';
 import { getStoredDisplayName } from '../utils/session';
@@ -38,7 +41,22 @@ function generatePatientRecordId() {
   return `PAT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(16).slice(2, 6).toUpperCase()}`;
 }
 
-function getValidation(items, patient, selectedPatientDbId) {
+function getValidation(items, patient, selectedPatientDbId, isDraft = false) {
+  if (isDraft) {
+    if (!selectedPatientDbId && !patient.name) {
+      return {
+        title: 'Needs Name',
+        detail: 'Patient name is required to save a draft.',
+        tone: 'status-pill status-warning'
+      };
+    }
+    return {
+      title: 'Ready',
+      detail: 'You can save this as a draft.',
+      tone: 'status-pill status-success'
+    };
+  }
+
   if (!selectedPatientDbId && (!patient.name || !patient.dob || !patient.email)) {
     return {
       title: 'Needs Patient Info',
@@ -63,6 +81,8 @@ function getValidation(items, patient, selectedPatientDbId) {
 }
 
 export default function Prescription() {
+  const { id: editId } = useParams();
+  const navigate = useNavigate();
   const [patient, setPatient] = useState({
     recordId: generatePatientRecordId(),
     name: '',
@@ -81,11 +101,58 @@ export default function Prescription() {
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [items, setItems] = useState([]);
+  const [portalCredentials, setPortalCredentials] = useState(null);
   const { notifySuccess, notifyWarning } = useToast();
 
   const debouncedMedicineQuery = useDebouncedValue(medicineQuery, 300);
   const debouncedPatientQuery = useDebouncedValue(`${patient.recordId} ${patient.name}`.trim(), 350);
+
+  useEffect(() => {
+    if (!editId) return;
+
+    async function loadDraft() {
+      try {
+        const data = await getPrescription(editId);
+        const rx = data?.prescription;
+        if (!rx || rx.status !== 'Draft') {
+          notifyWarning('Invalid Draft', 'This prescription is not a draft or does not exist.');
+          navigate('/prescription/new');
+          return;
+        }
+
+        const p = rx.patientId;
+        setSelectedPatientDbId(p._id);
+        setSelectedPatientHasPortal(Boolean(p.userId));
+        setPatient({
+          recordId: p.patientId,
+          name: p.name,
+          dob: p.dob ? new Date(p.dob).toISOString().slice(0, 10) : '',
+          gender: p.gender || 'Male',
+          email: p.userId?.email || '',
+          allergiesText: (p.allergies || []).map((a) => a.substance).join(', ')
+        });
+        setUrgent(rx.isUrgent);
+        setAllowRefills(rx.allowRefills > 0);
+        setItems(rx.items.map(item => ({
+          medicineId: item.medicineId?._id || null,
+          name: item.medicineId?.name || 'Unknown',
+          atcCode: item.atcCode,
+          dose: item.dose,
+          frequency: item.frequency,
+          route: item.route,
+          durationDays: item.durationDays,
+          instructions: item.instructions
+        })));
+        setMessage(`Loaded draft ${rx.rxId} for editing.`);
+      } catch (error) {
+        setErrorMessage(getApiMessage(error, 'Failed to load draft prescription'));
+      }
+    }
+
+    loadDraft();
+  }, [editId, navigate]);
 
   useEffect(() => {
     let isActive = true;
@@ -142,7 +209,8 @@ export default function Prescription() {
     };
   }, [debouncedPatientQuery]);
 
-  const validation = useMemo(() => getValidation(items, patient, selectedPatientDbId), [items, patient, selectedPatientDbId]);
+  const validation = useMemo(() => getValidation(items, patient, selectedPatientDbId, false), [items, patient, selectedPatientDbId]);
+  const draftValidation = useMemo(() => getValidation(items, patient, selectedPatientDbId, true), [items, patient, selectedPatientDbId]);
   const needsPortalInviteEmail = Boolean(selectedPatientDbId) && !selectedPatientHasPortal && !patient.email;
 
   const selectPatient = (entry) => {
@@ -188,9 +256,65 @@ export default function Prescription() {
     setItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
-  const handleDraftSave = () => {
-    setMessage('Draft retained locally in the form. Backend draft storage is not available yet.');
+  const handleDraftSave = async () => {
+    if (draftValidation.title !== 'Ready') {
+      setErrorMessage(draftValidation.detail);
+      return;
+    }
+
+    setIsSavingDraft(true);
     setErrorMessage('');
+    setMessage('');
+
+    try {
+      const prescriptionPayload = {
+        ...(selectedPatientDbId
+          ? {
+              patientId: selectedPatientDbId,
+              patientEmail: patient.email,
+            }
+          : {
+              patient: {
+                patientId: patient.recordId,
+                name: patient.name,
+                dob: patient.dob,
+                gender: patient.gender,
+                email: patient.email,
+                allergies: parseAllergies(patient.allergiesText)
+              }
+            }),
+        diagnosis: 'Generated from doctor draft workflow',
+        isUrgent: urgent,
+        allowRefills: allowRefills ? 3 : 0,
+        items: items.map((item) => ({
+          medicineId: item.medicineId,
+          atcCode: item.atcCode,
+          dose: item.dose,
+          frequency: item.frequency,
+          route: item.route,
+          durationDays: Number(item.durationDays) || 1,
+          instructions: item.instructions
+        })),
+        isDraft: true
+      };
+
+      if (editId) {
+        await updateDraftPrescription(editId, prescriptionPayload);
+        setMessage('Draft prescription updated successfully.');
+      } else {
+        const response = await createPrescription(prescriptionPayload);
+        const rx = response?.prescription;
+        setMessage(`Draft prescription ${rx?.rxId} saved successfully.`);
+        if (rx?._id) {
+          navigate(`/prescription/edit/${rx._id}`, { replace: true });
+        }
+      }
+      notifySuccess('Draft Saved', 'Your changes have been saved as a draft.', 3000);
+    } catch (error) {
+      setErrorMessage(getApiMessage(error, 'Failed to save draft'));
+    } finally {
+      setIsSavingDraft(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -247,17 +371,22 @@ export default function Prescription() {
         }))
       };
 
-      const response = await createPrescription(prescriptionPayload);
+      const response = editId 
+        ? await updateDraftPrescription(editId, { ...prescriptionPayload, submit: true })
+        : await createPrescription(prescriptionPayload);
       const createdPrescription = response?.prescription;
       const patientPortal = response?.patientPortal;
       const createdPatientDbId = patientPortal?.patient?._id || patientDbId;
 
       if (patientPortal?.access) {
-        const loginDetails = patientPortal.access.password
-          ? `Email: ${patientPortal.access.email}. Temporary password: ${patientPortal.access.password}.`
-          : `Email: ${patientPortal.access.email}. Existing account - no new password generated.`;
-
-        notifySuccess('Patient portal created', `${patient.name} can sign in from ${patientPortal.access.loginUrl}. ${loginDetails}`, 6000);
+        setPortalCredentials({
+          name: patient.name,
+          loginUrl: patientPortal.access.loginUrl,
+          email: patientPortal.access.email,
+          password: patientPortal.access.password
+        });
+        
+        notifySuccess('Patient portal created', `${patient.name} has been granted access.`, 4000);
 
         if (patientPortal.user?.inviteEmail && !patientPortal.user.inviteEmail.delivered) {
           notifyWarning(
@@ -277,6 +406,9 @@ export default function Prescription() {
 
       setMessage(`Prescription ${createdPrescription?.rxId || ''} submitted to pharmacy successfully.`);
       setItems([]);
+      if (editId) {
+        navigate('/prescription/new');
+      }
       setSelectedPatientDbId(createdPatientDbId);
       setSelectedPatientHasPortal(Boolean(patientPortal?.user));
     } catch (error) {
@@ -575,17 +707,56 @@ export default function Prescription() {
           Pharmacists will receive this digitally upon submission. Digital signature will be generated by the backend.
         </div>
         <div className="toolbar-group">
-          <button className="button-ghost" type="button">Cancel</button>
-          <button className="button-secondary" onClick={handleDraftSave} type="button">
+          <button className="button-ghost" onClick={() => navigate('/dashboard')} type="button">Cancel</button>
+          <button className="button-secondary" disabled={isSavingDraft || isSubmitting} onClick={handleDraftSave} type="button">
             <AppIcon name="note" size={16} />
-            Save Draft
+            {isSavingDraft ? 'Saving...' : 'Save Draft'}
           </button>
-          <button className="button-primary" disabled={isSubmitting} onClick={handleSubmit} type="button">
+          <button className="button-primary" disabled={isSubmitting || isSavingDraft} onClick={handleSubmit} type="button">
             <AppIcon name="arrowRight" size={16} />
             {isSubmitting ? 'Submitting...' : 'Submit to Pharmacy'}
           </button>
         </div>
       </div>
+
+      {portalCredentials ? (
+        <div className="user-modal-backdrop" style={{ zIndex: 10000 }}>
+          <div className="user-modal" role="dialog" aria-modal="true" style={{ width: 'min(100%, 460px)' }}>
+            <div className="page-title" style={{ marginBottom: '1.5rem' }}>
+              <div className="section-title">
+                <AppIcon name="checkCircle" size={20} />
+                <h3>Portal Access Created</h3>
+              </div>
+              <p className="helper-text">Share these credentials with the patient securely.</p>
+            </div>
+            
+            <div style={{ background: 'var(--surface-muted)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', border: '1px solid var(--line)' }}>
+              <div style={{ marginBottom: '0.8rem' }}>
+                <span className="caption">Login URL</span>
+                <div style={{ wordBreak: 'break-all', fontWeight: '500' }}>{portalCredentials.loginUrl}</div>
+              </div>
+              <div style={{ marginBottom: '0.8rem' }}>
+                <span className="caption">Email</span>
+                <div style={{ fontWeight: '500' }}>{portalCredentials.email}</div>
+              </div>
+              {portalCredentials.password ? (
+                <div>
+                  <span className="caption">Temporary Password</span>
+                  <div style={{ fontFamily: 'monospace', fontSize: '1.1rem', background: 'var(--surface)', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--line)', marginTop: '0.2rem' }}>
+                    {portalCredentials.password}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            
+            <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
+              <button className="button-primary" onClick={() => setPortalCredentials(null)} type="button">
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -73,14 +73,10 @@ const prescriptionSchema = new mongoose.Schema(
     items: {
       type: [prescriptionItemSchema],
       default: [],
-      validate: {
-        validator: (value) => Array.isArray(value) && value.length > 0,
-        message: 'At least one prescription item is required',
-      },
     },
     status: {
       type: String,
-      enum: ['Pending', 'Processing', 'Filled', 'Cancelled'],
+      enum: ['Draft', 'Pending', 'Processing', 'Filled', 'Cancelled'],
       default: 'Pending',
     },
     isUrgent: {

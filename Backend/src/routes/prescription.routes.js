@@ -4,6 +4,7 @@ import {
   downloadPrescriptionPdf,
   getAllPrescriptions,
   getPrescription,
+  updateDraft,
   updateExistingPrescriptionStatus,
 } from '../controllers/prescription.controller.js'
 import { verifyToken } from '../middlewares/auth.middleware.js'
@@ -23,6 +24,7 @@ router.get('/', requireRole('DOCTOR', 'PHARMACIST', 'PATIENT'), validatePrescrip
 router.post('/', requireRole('DOCTOR'), validateCreatePrescription, createNewPrescription)
 router.get('/:id/pdf', requireRole('DOCTOR', 'PHARMACIST', 'PATIENT'), validatePrescriptionIdParam, downloadPrescriptionPdf)
 router.get('/:id', requireRole('DOCTOR', 'PHARMACIST', 'PATIENT'), validatePrescriptionIdParam, getPrescription)
+router.patch('/:id', requireRole('DOCTOR'), validatePrescriptionIdParam, updateDraft)
 router.put('/:id/status', requireRole('PHARMACIST'), validateUpdatePrescriptionStatus, updateExistingPrescriptionStatus)
 
 export default router

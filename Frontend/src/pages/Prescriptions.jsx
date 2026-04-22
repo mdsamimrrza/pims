@@ -59,7 +59,7 @@ export default function Prescriptions() {
   const navigate = useNavigate();
   const role = getStoredRole();
   const isPharmacist = role === ROLES.PHARMACIST;
-  const canViewPatientRecord = role === ROLES.DOCTOR || role === ROLES.ADMIN;
+  const canViewPatientRecord = role === ROLES.DOCTOR || role === ROLES.ADMIN || role === ROLES.PHARMACIST;
   const records = useSelector((state) => state.prescriptions.items);
   const pagination = useSelector((state) => state.prescriptions.pagination);
   const selectedRecord = useSelector((state) => state.prescriptions.selected);
@@ -72,6 +72,7 @@ export default function Prescriptions() {
   const [limit, setLimit] = useState(20);
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, confirmText: 'Confirm', variant: 'primary', isError: false });
   const { notifyError, notifySuccess } = useToast();
 
   const debouncedQuery = useDebouncedValue(query, 300);
@@ -156,25 +157,43 @@ export default function Prescriptions() {
     }
   };
 
-  const handleStatusChange = async (status) => {
+  const handleStatusChange = (status) => {
     if (!selectedRecord?._id) {
       return;
     }
 
-    try {
-      dispatch(clearPrescriptionsError());
-      const updated = await dispatch(updatePrescriptionStatusById({ id: selectedRecord._id, status })).unwrap();
-      notifySuccess('Prescription updated', `${updated.rxId} moved to ${updated.status}.`);
-    } catch (error) {
-      notifyError('Status update failed', String(error || 'Failed to update prescription status'));
-    }
+    setConfirmDialog({
+      isOpen: true,
+      isError: false,
+      title: `Mark as ${status}?`,
+      message: `Are you sure you want to change the status of prescription ${selectedRecord.rxId || ''} to ${status}?`,
+      confirmText: `Yes, Mark ${status}`,
+      variant: status === 'Cancelled' ? 'danger' : 'primary',
+      onConfirm: async () => {
+        try {
+          dispatch(clearPrescriptionsError());
+          const updated = await dispatch(updatePrescriptionStatusById({ id: selectedRecord._id, status })).unwrap();
+          notifySuccess('Prescription updated', `${updated.rxId} moved to ${updated.status}.`);
+        } catch (error) {
+          setConfirmDialog({
+            isOpen: true,
+            isError: true,
+            title: 'Status Update Failed',
+            message: String(error || 'Failed to update prescription status. Please check inventory levels.'),
+            confirmText: 'Dismiss',
+            variant: 'primary',
+            onConfirm: null
+          });
+        }
+      }
+    });
   };
 
   const handleViewPatient = (record) => {
     const { id, patient } = getPatientRef(record);
 
     if (!canViewPatientRecord) {
-      notifyError('Access denied', 'Only doctor/admin roles can open patient records from this page.');
+      notifyError('Access denied', 'Your role does not have permission to open patient records.');
       return;
     }
 
@@ -493,6 +512,40 @@ export default function Prescriptions() {
           ) : null}
         </aside>
       </div>
+
+      {confirmDialog.isOpen ? (
+        <div className="user-modal-backdrop" style={{ zIndex: 10000 }}>
+          <div className="user-modal" role="dialog" aria-modal="true" style={{ width: 'min(100%, 420px)' }}>
+            <div className="page-title" style={{ marginBottom: '1rem' }}>
+              <div className="section-title">
+                <AppIcon name={confirmDialog.isError ? "alert" : "helpCircle"} size={20} />
+                <h3 style={confirmDialog.isError ? { color: 'var(--danger)' } : {}}>{confirmDialog.title}</h3>
+              </div>
+            </div>
+            <p style={{ marginBottom: '2rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+              {confirmDialog.message}
+            </p>
+            <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
+              {!confirmDialog.isError && (
+                <button className="button-ghost" onClick={() => setConfirmDialog({ ...confirmDialog, isOpen: false })} type="button">
+                  Cancel
+                </button>
+              )}
+              <button
+                className={confirmDialog.variant === 'danger' ? 'button-ghost' : 'button-primary'}
+                style={confirmDialog.variant === 'danger' ? { color: 'var(--danger)' } : {}}
+                onClick={() => {
+                  setConfirmDialog({ ...confirmDialog, isOpen: false });
+                  if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+                }}
+                type="button"
+              >
+                {confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

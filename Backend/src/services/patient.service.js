@@ -63,6 +63,15 @@ const normalizeWeight = (value) => {
   return Number.isFinite(numericValue) ? numericValue : value
 }
 
+const getPrimaryClientOrigin = () => {
+  const allOrigins = String(process.env.CLIENT_URL || 'http://localhost:5173')
+    .split(',')
+    .map((url) => String(url || '').trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+
+  return allOrigins.find((url) => !url.includes('localhost')) || allOrigins[0] || ''
+}
+
 const buildPatientQuery = (filters = {}) => {
   const query = {}
   const term = String(filters.q || '').trim()
@@ -214,9 +223,7 @@ export const createPatientPortalAccount = async (patientId, payload = {}) => {
     access: {
       email: user.email,
       password,
-      loginUrl: String(process.env.CLIENT_URL || '').replace(/\/+$/, '')
-        ? `${String(process.env.CLIENT_URL || '').replace(/\/+$/, '')}/patient/access`
-        : '/patient/access',
+      loginUrl: getPrimaryClientOrigin() ? `${getPrimaryClientOrigin()}/patient/login` : '/patient/login',
     },
   }
 }

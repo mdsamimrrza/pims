@@ -127,21 +127,35 @@ export default function Topbar({ showMenuToggle = false, onMenuToggle, isSidebar
         <div className="caption">{title}</div>
         <h1>{getPageTitle(location.pathname)}</h1>
       </div>
+
+      {!isPatientPortal && (
+        <div className="topbar-quick-icons" aria-label="Top actions">
+          <button aria-label="Notifications" className="icon-button" type="button">
+            <AppIcon name="bell" size={20} />
+          </button>
+          <DarkModeToggle />
+        </div>
+      )}
+
       <div className={`topbar-actions ${isPatientPortal ? 'patient-topbar-actions' : ''}`.trim()}>
         {!isPatientPortal && (
-          <>
-            <label className="search-field topbar-search">
-              <AppIcon name="search" size={18} />
-              <input aria-label="Quick search" placeholder="Quick search..." type="search" />
-            </label>
-            <button aria-label="Notifications" className="icon-button" type="button">
-              <AppIcon name="bell" size={20} />
-            </button>
-            <DarkModeToggle />
-          </>
+          <label className="search-field topbar-search">
+            <AppIcon name="search" size={18} />
+            <input aria-label="Quick search" placeholder="Quick search..." type="search" />
+          </label>
         )}
 
-        <div className={`profile-menu ${isProfileMenuOpen ? 'is-open' : ''}`.trim()} ref={profileMenuRef}>
+        <div className="topbar-right">
+          {!isPatientPortal && (
+            <div className="topbar-inline-icons">
+              <button aria-label="Notifications" className="icon-button" type="button">
+                <AppIcon name="bell" size={20} />
+              </button>
+              <DarkModeToggle />
+            </div>
+          )}
+
+          <div className={`profile-menu ${isProfileMenuOpen ? 'is-open' : ''}`.trim()} ref={profileMenuRef}>
           <button
             aria-expanded={isProfileMenuOpen}
             aria-haspopup="dialog"
@@ -210,8 +224,9 @@ export default function Topbar({ showMenuToggle = false, onMenuToggle, isSidebar
             </div>
           ) : null}
         </div>
+      </div>
 
-        {isPatientPortal && (
+      {isPatientPortal && (
           <div className="patient-topbar-theme">
             <DarkModeToggle />
           </div>

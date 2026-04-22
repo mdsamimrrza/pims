@@ -332,7 +332,18 @@ export default function ATCClassification() {
             <AtcTreeBranch
               expandedCodes={expandedCodes}
               nodes={tree}
-              onSelect={setSelectedCode}
+              onSelect={(code) => {
+                if (code === selectedCode) {
+                  const currentPath = findPath(tree, code);
+                  if (currentPath.length > 1) {
+                    setSelectedCode(currentPath[currentPath.length - 2].code);
+                  } else {
+                    setSelectedCode('');
+                  }
+                } else {
+                  setSelectedCode(code);
+                }
+              }}
               selectedCode={selectedCode}
             />
           </div>

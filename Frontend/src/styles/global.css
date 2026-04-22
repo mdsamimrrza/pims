@@ -434,7 +434,8 @@ textarea:focus-visible {
 .topbar-title {
   display: grid;
   gap: 0.15rem;
-  flex: 1;
+  flex-shrink: 0;
+  margin-right: 2rem;
 }
 
 .topbar-title h1 {
@@ -446,7 +447,27 @@ textarea:focus-visible {
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.topbar-quick-icons {
+  display: none;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.topbar-inline-icons {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 
 .patient-topbar-actions {
@@ -485,7 +506,7 @@ textarea:focus-visible {
 }
 
 .topbar-search {
-  width: min(320px, 28vw);
+  width: 70%;
 }
 
 .icon-button {
@@ -495,6 +516,7 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--line);
+  border-radius: 999px;
   background: var(--surface-grad);
   color: var(--muted);
   transition: border-color 140ms ease, color 140ms ease, transform 140ms ease;
@@ -512,14 +534,17 @@ textarea:focus-visible {
   height: 2.7rem;
   align-items: center;
   justify-content: center;
+  border-radius: 999px;
 }
 
 .profile-chip {
   display: flex;
   align-items: center;
   gap: 0.85rem;
-  border-left: 1px solid var(--line);
-  padding-left: 0.95rem;
+  padding: 0.4rem 0.6rem 0.4rem 1rem;
+  background: var(--surface-muted);
+  border-radius: 999px;
+  border: 1px solid var(--line);
 }
 
 .profile-menu {
@@ -528,8 +553,10 @@ textarea:focus-visible {
 
 .profile-chip-button {
   text-align: left;
-  border-left: 1px solid var(--line);
-  padding-left: 0.95rem;
+  padding: 0.4rem 0.6rem 0.4rem 1rem;
+  background: var(--surface-muted);
+  border-radius: 999px;
+  border: 1px solid var(--line);
 }
 
 .profile-chip-copy {
@@ -1415,12 +1442,12 @@ html.dark .button-primary:hover {
 
 .toast-viewport {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 120;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 9999;
   display: grid;
   gap: 0.65rem;
-  width: min(420px, calc(100vw - 1.5rem));
+  width: min(420px, calc(100vw - 3rem));
 }
 
 .toast {
@@ -1490,7 +1517,7 @@ html.dark .button-primary:hover {
 @keyframes toast-enter {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(15px);
   }
 
   to {
@@ -5522,10 +5549,10 @@ html.dark .patient-shortcut-card:hover {
 
   .topbar {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      'menu title'
-      'actions actions';
+      'menu title quick'
+      'actions actions actions';
     align-items: center;
     gap: 0.65rem 0.75rem;
   }
@@ -5547,6 +5574,17 @@ html.dark .patient-shortcut-card:hover {
     align-self: start;
   }
 
+  .topbar-quick-icons {
+    grid-area: quick;
+    display: flex;
+    justify-self: end;
+    align-self: start;
+  }
+
+  .topbar-inline-icons {
+    display: none;
+  }
+
   .topbar-title {
     grid-area: title;
     min-width: 0;
@@ -5566,8 +5604,9 @@ html.dark .patient-shortcut-card:hover {
     grid-area: actions;
     width: 100%;
     justify-content: flex-start;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.55rem;
+    align-items: center;
   }
 
   .patient-topbar-actions {
@@ -5679,11 +5718,21 @@ html.dark .patient-shortcut-card:hover {
 
   .topbar-actions {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .topbar-search {
-    width: 100%;
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .topbar-right {
+    margin-left: auto;
+    flex: 0 0 auto;
+    gap: 0.55rem;
   }
 
   .field-grid.two,

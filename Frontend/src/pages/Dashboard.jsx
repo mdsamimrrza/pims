@@ -17,6 +17,9 @@ function statusClass(status) {
   if (status === 'Cancelled') {
     return 'status-pill status-critical';
   }
+  if (status === 'Draft') {
+    return 'status-pill status-neutral';
+  }
   return 'status-pill status-neutral';
 }
 
@@ -74,6 +77,7 @@ export default function Dashboard() {
   const [patientName, setPatientName] = useState('');
   const [medicineQuery, setMedicineQuery] = useState('');
   const [recentPrescriptions, setRecentPrescriptions] = useState([]);
+  const [draftPrescriptions, setDraftPrescriptions] = useState([]);
   const [patientMatches, setPatientMatches] = useState([]);
   const [medicineMatches, setMedicineMatches] = useState([]);
   const [overview, setOverview] = useState({
@@ -97,8 +101,9 @@ export default function Dashboard() {
       setPageState({ isLoading: true, errorMessage: '' });
 
       try {
-        const [prescriptionData, patientData] = await Promise.all([
+        const [prescriptionData, draftData, patientData] = await Promise.all([
           listPrescriptions({ limit: 12 }),
+          listPrescriptions({ limit: 10, status: 'Draft' }),
           listPatients({ limit: 25 })
         ]);
 
@@ -107,9 +112,11 @@ export default function Dashboard() {
         }
 
         const prescriptions = prescriptionData?.prescriptions || [];
+        const drafts = draftData?.prescriptions || [];
         const patients = patientData?.patients || [];
 
         setRecentPrescriptions(prescriptions.slice(0, 5));
+        setDraftPrescriptions(drafts);
         setOverview({
           todayTotal: prescriptions.filter((item) => isSameDay(item.createdAt)).length,
           scheduled: prescriptions.filter((item) => item.status === 'Pending' || item.status === 'Processing').length,
@@ -355,6 +362,34 @@ export default function Dashboard() {
           </div>
         ) : null}
       </section>
+
+      {draftPrescriptions.length ? (
+        <section className="panel">
+          <div className="section-title" style={{ marginBottom: '1.5rem' }}>
+            <AppIcon name="note" size={20} />
+            <h3>My Draft Prescriptions</h3>
+          </div>
+          <div className="mini-list">
+            {draftPrescriptions.map((draft) => (
+              <div className="mini-list-item" key={draft._id}>
+                <div>
+                  <strong>{draft.rxId}</strong>
+                  <div className="helper-text">
+                    {draft.patientId?.name || 'Unknown Patient'} · {draft.items?.length || 0} items · Saved {formatDate(draft.updatedAt)}
+                  </div>
+                </div>
+                <div className="toolbar-group">
+                  <span className="status-pill status-neutral">Draft</span>
+                  <Link className="button-secondary" to={`/prescription/edit/${draft._id}`}>
+                    <AppIcon name="edit" size={14} />
+                    Resume
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="table-panel">
         <div className="table-head">

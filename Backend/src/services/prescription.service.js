@@ -10,8 +10,17 @@ import { ROLES } from '../utils/constants.js'
 import { buildPagination, getPagination } from '../utils/pagination.js'
 import { generatePassword } from '../utils/password.js'
 
-const PRESCRIPTION_STATUSES = ['Pending', 'Processing', 'Filled', 'Cancelled']
+const PRESCRIPTION_STATUSES = ['Draft', 'Pending', 'Processing', 'Filled', 'Cancelled']
 const PHARMACIST_ALLOWED_STATUSES = ['Processing', 'Filled', 'Cancelled']
+
+const getPrimaryClientOrigin = () => {
+  const allOrigins = String(process.env.CLIENT_URL || 'http://localhost:5173')
+    .split(',')
+    .map((url) => String(url || '').trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+
+  return allOrigins.find((url) => !url.includes('localhost')) || allOrigins[0] || ''
+}
 
 const prescriptionNotFound = () => {
   const error = new Error('Prescription not found')
@@ -194,7 +203,15 @@ export const getPrescriptionById = async (id, actor) => {
 export const createPrescription = async (payload) => {
   ensureObjectId(payload.doctorId, 'doctorId')
 
-  const normalizedItems = await normalizePrescriptionItems(payload.items)
+  const isDraft = Boolean(payload.isDraft)
+
+  if (!isDraft && (!Array.isArray(payload.items) || payload.items.length === 0)) {
+    throw validationError('At least one prescription item is required')
+  }
+
+  const normalizedItems = isDraft && (!payload.items || payload.items.length === 0)
+    ? []
+    : await normalizePrescriptionItems(payload.items)
   let patient = null
   let patientPortal = null
 
@@ -239,9 +256,7 @@ export const createPrescription = async (payload) => {
         access: {
           email: existingPortalUser.email,
           password: null,
-          loginUrl: String(process.env.CLIENT_URL || '').replace(/\/+$/, '')
-            ? `${String(process.env.CLIENT_URL || '').replace(/\/+$/, '')}/patient/access`
-            : '/patient/access',
+          loginUrl: getPrimaryClientOrigin() ? `${getPrimaryClientOrigin()}/patient/login` : '/patient/login',
         },
       }
     } else {
@@ -279,17 +294,17 @@ export const createPrescription = async (payload) => {
     doctorId: doctor._id,
     diagnosis: String(payload.diagnosis || '').trim(),
     items: normalizedItems,
-    status: 'Pending',
+    status: isDraft ? 'Draft' : 'Pending',
     isUrgent: Boolean(payload.isUrgent),
     allowRefills:
       Number(payload.allowRefills) >= 0 && Number(payload.allowRefills) <= 3
         ? Number(payload.allowRefills)
         : 0,
-    digitalSignature: String(payload.digitalSignature || buildDigitalSignature(doctor)).trim(),
+    digitalSignature: isDraft ? '' : String(payload.digitalSignature || buildDigitalSignature(doctor)).trim(),
     pdfUrl: String(payload.pdfUrl || '').trim(),
   })
 
-  if (process.env.PHARMACY_NOTIFICATION_EMAIL) {
+  if (!isDraft && process.env.PHARMACY_NOTIFICATION_EMAIL) {
     try {
       await sendPrescriptionNotificationEmail({
         to: process.env.PHARMACY_NOTIFICATION_EMAIL,
@@ -360,4 +375,62 @@ export const updatePrescriptionStatus = async (id, status) => {
   }
 
   return getPrescriptionById(prescription._id, { role: ROLES.PHARMACIST })
+}
+
+export const updateDraftPrescription = async (id, payload, actor) => {
+  ensureObjectId(id, 'prescription id')
+
+  const existing = await Prescription.findOne({
+    _id: id,
+    doctorId: actor.id || actor._id,
+    status: 'Draft',
+  }).lean()
+
+  if (!existing) {
+    throw validationError('Draft prescription not found or you do not have permission to edit it')
+  }
+
+  const isSubmitting = payload.submit === true
+  const normalizedItems = payload.items && payload.items.length > 0
+    ? await normalizePrescriptionItems(payload.items)
+    : existing.items
+
+  if (isSubmitting && normalizedItems.length === 0) {
+    throw validationError('At least one prescription item is required to submit a prescription')
+  }
+
+  const doctor = await User.findById(actor.id || actor._id)
+  const updates = {
+    diagnosis: payload.diagnosis !== undefined ? String(payload.diagnosis || '').trim() : existing.diagnosis,
+    items: normalizedItems,
+    isUrgent: payload.isUrgent !== undefined ? Boolean(payload.isUrgent) : existing.isUrgent,
+    allowRefills: payload.allowRefills !== undefined
+      ? (Number(payload.allowRefills) >= 0 && Number(payload.allowRefills) <= 3 ? Number(payload.allowRefills) : existing.allowRefills)
+      : existing.allowRefills,
+    status: isSubmitting ? 'Pending' : 'Draft',
+    digitalSignature: isSubmitting ? buildDigitalSignature(doctor) : '',
+  }
+
+  const updated = await Prescription.findByIdAndUpdate(id, updates, { new: true, runValidators: true })
+
+  if (!updated) {
+    throw prescriptionNotFound()
+  }
+
+  if (isSubmitting && process.env.PHARMACY_NOTIFICATION_EMAIL) {
+    try {
+      const patient = await Patient.findById(existing.patientId).lean()
+      await sendPrescriptionNotificationEmail({
+        to: process.env.PHARMACY_NOTIFICATION_EMAIL,
+        rxId: updated.rxId,
+        patientName: patient?.name || 'Patient',
+        doctorName: `${doctor.firstName} ${doctor.lastName}`.trim(),
+        isUrgent: updated.isUrgent,
+      })
+    } catch (err) {
+      console.warn(`Notification email failed for ${updated.rxId}: ${err.message}`)
+    }
+  }
+
+  return getPrescriptionById(updated._id, { role: ROLES.DOCTOR })
 }

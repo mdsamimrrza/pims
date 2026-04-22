@@ -114,6 +114,16 @@ export default function AppRoutes() {
         )}
       />
       <Route
+        path="/prescription/edit/:id"
+        element={(
+          <ProtectedRoute allowedRoles={[ROLES.DOCTOR]}>
+            <MainLayout>
+              <Prescription />
+            </MainLayout>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
         path="/prescriptions"
         element={(
           <ProtectedRoute allowedRoles={[ROLES.DOCTOR, ROLES.PHARMACIST]}>
@@ -126,7 +136,7 @@ export default function AppRoutes() {
       <Route
         path="/patients/:id/details"
         element={(
-          <ProtectedRoute allowedRoles={[ROLES.DOCTOR, ROLES.ADMIN]}>
+          <ProtectedRoute allowedRoles={[ROLES.DOCTOR, ROLES.ADMIN, ROLES.PHARMACIST]}>
             <MainLayout>
               <PatientRecordDetails />
             </MainLayout>

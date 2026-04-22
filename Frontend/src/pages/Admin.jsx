@@ -72,6 +72,7 @@ export default function Admin() {
   const [portalForm, setPortalForm] = useState(emptyPortalForm);
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
   const [patientLookup, setPatientLookup] = useState(emptyPatientLookup);
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, confirmText: 'Confirm', variant: 'primary' });
   const { notifyError, notifySuccess } = useToast();
   const debouncedQuery = useDebouncedValue(searchQuery, 300);
   const debouncedPatientLookup = useDebouncedValue(patientLookup.query, 300);
@@ -257,51 +258,54 @@ export default function Admin() {
     }
   };
 
-  const handleToggleUserStatus = async (user) => {
+  const handleToggleUserStatus = (user) => {
     const nextIsActive = !user?.isActive;
     const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'this user';
     const actionLabel = nextIsActive ? 'Activate' : 'Deactivate';
-    const shouldProceed = window.confirm(
-      `${actionLabel} ${fullName}? ${nextIsActive ? 'They will be able to log in again.' : 'This will disable account login access.'}`
-    );
-
-    if (!shouldProceed) {
-      return;
-    }
-
-    try {
-      dispatch(clearAdminUsersError());
-      await dispatch(setAdminUserStatus({ userId: user._id, isActive: nextIsActive })).unwrap();
-      dispatch(fetchAdminUsers(queryParams));
-      notifySuccess(
-        `User ${nextIsActive ? 'activated' : 'deactivated'}`,
-        `${fullName} is now ${nextIsActive ? 'active' : 'inactive'}.`
-      );
-    } catch (error) {
-      notifyError('Status update failed', String(error || 'Failed to update user status'));
-    }
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: `${actionLabel} User?`,
+      message: `${actionLabel} ${fullName}? ${nextIsActive ? 'They will be able to log in again.' : 'This will disable account login access.'}`,
+      confirmText: actionLabel,
+      variant: 'primary',
+      onConfirm: async () => {
+        try {
+          dispatch(clearAdminUsersError());
+          await dispatch(setAdminUserStatus({ userId: user._id, isActive: nextIsActive })).unwrap();
+          dispatch(fetchAdminUsers(queryParams));
+          notifySuccess(
+            `User ${nextIsActive ? 'activated' : 'deactivated'}`,
+            `${fullName} is now ${nextIsActive ? 'active' : 'inactive'}.`
+          );
+        } catch (error) {
+          notifyError('Status update failed', String(error || 'Failed to update user status'));
+        }
+      }
+    });
   };
 
-  const handlePermanentDeleteUser = async (user) => {
+  const handlePermanentDeleteUser = (user) => {
     const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'this user';
-    const warning =
-      `Permanently delete ${fullName}? This cannot be undone.\n\n` +
-      'Recommended: deactivate first, then delete only if you are sure.';
-    const shouldProceed = window.confirm(warning);
-
-    if (!shouldProceed) {
-      return;
-    }
-
-    try {
-      dispatch(clearAdminUsersError());
-      await dispatch(permanentlyDeleteAdminUser(user._id)).unwrap();
-      dispatch(fetchAdminUsers(queryParams));
-      notifySuccess('User permanently deleted', `${fullName} has been removed from the system.`);
-      setManagedUser(null);
-    } catch (error) {
-      notifyError('Permanent delete failed', String(error || 'Failed to permanently delete user'));
-    }
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete User Permanently?',
+      message: `Permanently delete ${fullName}? This cannot be undone.\n\nRecommended: deactivate first, then delete only if you are sure.`,
+      confirmText: 'Delete Permanently',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          dispatch(clearAdminUsersError());
+          await dispatch(permanentlyDeleteAdminUser(user._id)).unwrap();
+          dispatch(fetchAdminUsers(queryParams));
+          notifySuccess('User permanently deleted', `${fullName} has been removed from the system.`);
+          setManagedUser(null);
+        } catch (error) {
+          notifyError('Permanent delete failed', String(error || 'Failed to permanently delete user'));
+        }
+      }
+    });
   };
 
   const handleSelectUser = (user) => {
@@ -709,6 +713,38 @@ export default function Admin() {
               </button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {confirmDialog.isOpen ? (
+        <div className="user-modal-backdrop" style={{ zIndex: 10000 }}>
+          <div className="user-modal" role="dialog" aria-modal="true" style={{ width: 'min(100%, 420px)' }}>
+            <div className="page-title" style={{ marginBottom: '1rem' }}>
+              <div className="section-title">
+                <AppIcon name="alert" size={20} />
+                <h3>{confirmDialog.title}</h3>
+              </div>
+            </div>
+            <p style={{ marginBottom: '2rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+              {confirmDialog.message}
+            </p>
+            <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
+              <button className="button-ghost" onClick={() => setConfirmDialog({ ...confirmDialog, isOpen: false })} type="button">
+                Cancel
+              </button>
+              <button
+                className="button-primary"
+                style={confirmDialog.variant === 'danger' ? { background: 'var(--danger)', borderColor: 'var(--danger)' } : {}}
+                onClick={() => {
+                  setConfirmDialog({ ...confirmDialog, isOpen: false });
+                  if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+                }}
+                type="button"
+              >
+                {confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 

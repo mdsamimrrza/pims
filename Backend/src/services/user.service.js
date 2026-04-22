@@ -5,8 +5,17 @@ import { ROLES } from '../utils/constants.js'
 
 const markPasswordChangedAt = () => new Date(Date.now() - 1000)
 
+const getPrimaryClientOrigin = () => {
+  const allOrigins = String(process.env.CLIENT_URL || 'http://localhost:5173')
+    .split(',')
+    .map((url) => String(url || '').trim().replace(/\/+$/, ''))
+    .filter(Boolean)
+
+  return allOrigins.find((url) => !url.includes('localhost')) || allOrigins[0] || ''
+}
+
 const getRoleAccessUrl = (role) => {
-  const clientUrl = String(process.env.CLIENT_URL || '').replace(/\/+$/, '')
+  const clientUrl = getPrimaryClientOrigin()
   const accessPath = {
     [ROLES.DOCTOR]: '/doctor/access',
     [ROLES.PHARMACIST]: '/pharmacist/access',

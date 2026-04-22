@@ -13,7 +13,7 @@ import {
   requireNonEmptyString,
 } from './validate.js'
 
-const PRESCRIPTION_STATUSES = ['Pending', 'Processing', 'Filled', 'Cancelled']
+const PRESCRIPTION_STATUSES = ['Draft', 'Pending', 'Processing', 'Filled', 'Cancelled']
 
 const validatePrescriptionItems = (errors, items) => {
   if (!Array.isArray(items) || items.length === 0) {
@@ -76,25 +76,41 @@ export const validatePrescriptionQuery = createValidator((req) => {
 export const validateCreatePrescription = createValidator((req) => {
   const errors = []
   const body = req.body || {}
+  const isDraft = body.isDraft === true
 
   if (body.patientId) {
     requireObjectId(errors, 'patientId', body.patientId)
   } else {
     const patient = body.patient || {}
     requireNonEmptyString(errors, 'patient.name', patient.name)
-    requireDate(errors, 'patient.dob', patient.dob)
-    requireEmail(errors, 'patient.email', patient.email)
+    
+    // DOB and Email are optional for drafts
+    if (!isDraft) {
+      requireDate(errors, 'patient.dob', patient.dob)
+      requireEmail(errors, 'patient.email', patient.email)
+    } else {
+      optionalDate(errors, 'patient.dob', patient.dob)
+      optionalEmail(errors, 'patient.email', patient.email)
+    }
+    
     optionalString(errors, 'patient.gender', patient.gender)
     optionalString(errors, 'patient.allergiesText', patient.allergiesText)
   }
 
-  requireArray(errors, 'items', body.items)
+  if (isDraft) {
+    if (body.items !== undefined) {
+      validatePrescriptionItems(errors, body.items)
+    }
+  } else {
+    requireArray(errors, 'items', body.items)
+    validatePrescriptionItems(errors, body.items)
+  }
+
   optionalString(errors, 'diagnosis', body.diagnosis)
   optionalBoolean(errors, 'isUrgent', body.isUrgent)
   optionalNumberRange(errors, 'allowRefills', body.allowRefills, 0, 3)
   optionalString(errors, 'digitalSignature', body.digitalSignature)
   optionalString(errors, 'pdfUrl', body.pdfUrl)
-  validatePrescriptionItems(errors, body.items)
 
   return errors
 })

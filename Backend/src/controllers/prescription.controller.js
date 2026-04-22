@@ -2,6 +2,7 @@ import {
   createPrescription,
   getPrescriptionById,
   listPrescriptions,
+  updateDraftPrescription,
   updatePrescriptionStatus,
 } from '../services/prescription.service.js'
 import { generatePrescriptionPdf } from '../services/pdf.service.js'
@@ -74,5 +75,14 @@ export const downloadPrescriptionPdf = async (req, res) => {
     return undefined
   } catch (error) {
     return sendError(res, error.message || 'Failed to generate prescription PDF', error.statusCode || 500)
+  }
+}
+
+export const updateDraft = async (req, res) => {
+  try {
+    const prescription = await updateDraftPrescription(req.params.id, req.body || {}, req.user)
+    return sendSuccess(res, { prescription }, 'Draft prescription updated')
+  } catch (error) {
+    return sendError(res, error.message || 'Failed to update draft prescription', error.statusCode || 500)
   }
 }

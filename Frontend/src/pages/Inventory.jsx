@@ -61,6 +61,7 @@ export default function Inventory() {
   const [isCreateMedicineModalOpen, setIsCreateMedicineModalOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState('');
   const [deleteTargetRecordId, setDeleteTargetRecordId] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null, confirmText: 'Confirm', variant: 'primary' });
   const [form, setForm] = useState(emptyForm);
   const [medicineForm, setMedicineForm] = useState(emptyMedicineForm);
   const [editForm, setEditForm] = useState({
@@ -128,7 +129,7 @@ export default function Inventory() {
     setDeleteTargetRecordId((current) => (current === recordId ? '' : recordId));
   };
 
-  const removeInventoryById = async (recordId) => {
+  const removeInventoryById = (recordId) => {
     const record = records.find((entry) => entry._id === recordId);
     if (!record) {
       notifyError('Delete failed', 'Inventory item no longer exists.');
@@ -136,24 +137,28 @@ export default function Inventory() {
     }
 
     const medicineName = record?.medicineId?.name || record?.atcCode || 'this item';
-    const shouldDelete = window.confirm(`Delete ${medicineName} (${record.batchId}) from inventory?`);
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Inventory Batch?',
+      message: `Delete ${medicineName} (Batch: ${record.batchId}) from inventory? This action cannot be undone.`,
+      confirmText: 'Delete Batch',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          dispatch(clearInventoryError());
+          await dispatch(deleteInventoryBatch(record._id)).unwrap();
+          notifySuccess('Inventory deleted', `${medicineName} batch ${record.batchId} was removed.`);
+          setDeleteTargetRecordId('');
 
-    if (!shouldDelete) {
-      return;
-    }
-
-    try {
-      dispatch(clearInventoryError());
-      await dispatch(deleteInventoryBatch(record._id)).unwrap();
-      notifySuccess('Inventory deleted', `${medicineName} batch ${record.batchId} was removed.`);
-      setDeleteTargetRecordId('');
-
-      if (editingRecordId === record._id) {
-        closeEditModal();
+          if (editingRecordId === record._id) {
+            closeEditModal();
+          }
+        } catch (error) {
+          notifyError('Delete failed', String(error || 'Failed to delete inventory item'));
+        }
       }
-    } catch (error) {
-      notifyError('Delete failed', String(error || 'Failed to delete inventory item'));
-    }
+    });
   };
 
   const restock = async (record) => {
@@ -558,6 +563,38 @@ export default function Inventory() {
           </form>
         </div>
       ) : null}
+      {confirmDialog.isOpen ? (
+        <div className="user-modal-backdrop" style={{ zIndex: 10000 }}>
+          <div className="user-modal" role="dialog" aria-modal="true" style={{ width: 'min(100%, 420px)' }}>
+            <div className="page-title" style={{ marginBottom: '1rem' }}>
+              <div className="section-title">
+                <AppIcon name="alert" size={20} />
+                <h3>{confirmDialog.title}</h3>
+              </div>
+            </div>
+            <p style={{ marginBottom: '2rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+              {confirmDialog.message}
+            </p>
+            <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
+              <button className="button-ghost" onClick={() => setConfirmDialog({ ...confirmDialog, isOpen: false })} type="button">
+                Cancel
+              </button>
+              <button
+                className="button-primary"
+                style={confirmDialog.variant === 'danger' ? { background: 'var(--danger)', borderColor: 'var(--danger)' } : {}}
+                onClick={() => {
+                  setConfirmDialog({ ...confirmDialog, isOpen: false });
+                  if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+                }}
+                type="button"
+              >
+                {confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </section>
   );
 }
