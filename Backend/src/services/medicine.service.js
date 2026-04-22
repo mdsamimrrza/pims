@@ -31,7 +31,10 @@ const buildMedicineQuery = (filters = {}) => {
 
   if (filters.atcCode) {
     const normalizedAtcCode = normalizeAtcCode(filters.atcCode)
-    const includeDescendants = filters.includeDescendants === true || filters.includeDescendants === 'true'
+    // Force prefix match if code is a top-level category (1-4 chars) or flag is set
+    const isTopLevel = normalizedAtcCode.length <= 4
+    const includeDescendants = filters.includeDescendants === true || filters.includeDescendants === 'true' || isTopLevel
+
     query.atcCode = includeDescendants
       ? { $regex: `^${normalizedAtcCode}`, $options: 'i' }
       : { $regex: `^${normalizedAtcCode}$`, $options: 'i' }
