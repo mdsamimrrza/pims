@@ -5,10 +5,10 @@ import Topbar from '../components/Topbar';
 import AppIcon from '../components/AppIcon';
 import { getNavigationForRole } from '../constants/navigation';
 import { ROLES } from '../constants/roles';
-import { roleProfiles } from '../data/mockData';
 import { logout } from '../api/pimsApi';
 import { clearSession, getRoleAccessPath, getStoredRole } from '../utils/session';
 import { clearAuthState } from '../store/slices/authSlice';
+import { ROLE_LABELS } from '../constants/roles';
 
 function navLinkClass({ isActive }) {
   return isActive ? 'nav-link active' : 'nav-link';
@@ -20,7 +20,7 @@ export default function MainLayout({ children }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const role = useSelector((state) => state.auth.role) || getStoredRole();
-  const profile = roleProfiles[role] || roleProfiles[ROLES.DOCTOR];
+  const roleTitle = ROLE_LABELS[role] || role || 'User';
   const navigation = getNavigationForRole(role);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(() => {
@@ -118,7 +118,7 @@ export default function MainLayout({ children }) {
           </button>
           <div className="brand-copy">
             <strong>PIMS</strong>
-            <span className="helper-text">{profile.title}</span>
+            <span className="helper-text">{roleTitle}</span>
           </div>
           <button aria-label="Toggle sidebar" className="sidebar-toggle sidebar-toggle-in-panel" onClick={toggleSidebar} type="button">
             <AppIcon name={isSidebarOpen ? 'close' : 'menu'} size={18} />

@@ -42,6 +42,7 @@ export const hydrateAuthSession = createAsyncThunk(
         updateStoredUser(user);
       }
 
+      return {
         token,
         user,
         role: user?.role || getStoredRole(),

@@ -1599,6 +1599,35 @@ html.dark .button-primary:hover {
   padding: 1.45rem;
   display: grid;
   gap: 1rem;
+  position: relative;
+}
+
+.atc-monograph-modal {
+  width: min(680px, 100%);
+}
+
+.monograph-close-button {
+  position: absolute !important;
+  top: 1rem;
+  right: 1rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: var(--shadow-soft);
+  z-index: 10;
+  transition: all 140ms ease !important;
+}
+
+.monograph-close-button:hover {
+  background: var(--bg) !important;
+  transform: scale(1.1);
+  border-color: var(--line-strong) !important;
 }
 
 .manage-user-modal {

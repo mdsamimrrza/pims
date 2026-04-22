@@ -471,7 +471,12 @@ export default function ATCClassification() {
                   </div>
                   <p className="helper-text">Monograph-style guidance for the selected ATC node and its mapped medicines.</p>
                 </div>
-                <button aria-label="Close monograph" className="button-ghost" onClick={() => setIsMonographOpen(false)} type="button">
+                <button
+                  aria-label="Close monograph"
+                  className="button-ghost monograph-close-button"
+                  onClick={() => setIsMonographOpen(false)}
+                  type="button"
+                >
                   <AppIcon name="close" size={16} />
                 </button>
               </div>

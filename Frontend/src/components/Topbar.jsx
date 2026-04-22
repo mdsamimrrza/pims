@@ -5,7 +5,6 @@ import AppIcon from './AppIcon';
 import DarkModeToggle from './DarkModeToggle';
 import { getPageTitle } from '../constants/navigation';
 import { ROLE_LABELS, ROLES } from '../constants/roles';
-import { roleProfiles } from '../data/mockData';
 import { logout } from '../api/pimsApi';
 import { clearSession, getRoleAccessPath, getStoredDisplayName, getStoredRole, getStoredUser } from '../utils/session';
 import { clearAuthState } from '../store/slices/authSlice';
@@ -40,15 +39,14 @@ export default function Topbar({ showMenuToggle = false, onMenuToggle, isSidebar
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const role = authRole || getStoredRole();
   const storedUser = authUser || getStoredUser();
-  const fallbackProfile = roleProfiles[role] || roleProfiles[ROLES.DOCTOR];
   const patientRecord = storedUser?.patient || null;
   const accountDisplayName = [storedUser?.firstName, storedUser?.lastName].filter(Boolean).join(' ').trim()
     || storedUser?.name
     || storedUser?.email
     || getStoredDisplayName()
-    || fallbackProfile.name;
+    || 'System User';
   const displayName = role === ROLES.PATIENT ? getPatientPortalName(storedUser, accountDisplayName) : accountDisplayName;
-  const title = ROLE_LABELS[storedUser?.role] || fallbackProfile.title;
+  const title = ROLE_LABELS[role] || role || 'User';
   const initials = getInitials(displayName);
   const patientId = patientRecord?.patientId || storedUser?.patientId || '';
   const emailAddress = storedUser?.email || '';
