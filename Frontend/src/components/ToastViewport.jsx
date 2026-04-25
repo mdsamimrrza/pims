@@ -40,6 +40,7 @@ export default function ToastViewport() {
     <aside aria-live="polite" className="toast-viewport" aria-label="Notifications">
       {toasts.map((toast) => (
         <div className={`toast toast-${toast.type}`} key={toast.id} role="status">
+          <div className="toast-accent" aria-hidden="true" />
           <div className="toast-icon">
             <AppIcon name={iconForType(toast.type)} size={18} />
           </div>
@@ -49,11 +50,11 @@ export default function ToastViewport() {
           </div>
           <button
             aria-label="Close notification"
-            className="button-ghost"
+            className="toast-close"
             onClick={() => dispatch(removeToast(toast.id))}
             type="button"
           >
-            Close
+            <AppIcon name="close" size={16} />
           </button>
         </div>
       ))}

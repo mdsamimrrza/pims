@@ -31,6 +31,36 @@ const ROLE_ICON = {
   [ROLES.PATIENT]: 'users'
 };
 
+const AUTH_RATE_LIMIT_KEY = 'pims_auth_rate_limit_until';
+
+function parseStoredLockoutUntil() {
+  const rawValue = localStorage.getItem(AUTH_RATE_LIMIT_KEY);
+  const timestamp = Number(rawValue);
+  return Number.isFinite(timestamp) && timestamp > Date.now() ? timestamp : 0;
+}
+
+function formatCountdown(msRemaining) {
+  const totalSeconds = Math.max(0, Math.ceil(msRemaining / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getRateLimitResetAt(error) {
+  const headers = error?.response?.headers || {};
+  const retryAfter = Number(headers['retry-after']);
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return Date.now() + (retryAfter * 1000);
+  }
+
+  const rateLimitReset = Number(headers['ratelimit-reset']);
+  if (Number.isFinite(rateLimitReset) && rateLimitReset > 0) {
+    return Date.now() + (rateLimitReset * 1000);
+  }
+
+  return Date.now() + (15 * 60 * 1000);
+}
+
 function getRoleAccessPath(role) {
   switch (role) {
     case ROLES.PHARMACIST:
@@ -60,13 +90,51 @@ export default function Login({ forcedRole = null, showRolePicker = true, pageTi
   const [rememberDevice, setRememberDevice] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [rateLimitResetAt, setRateLimitResetAt] = useState(() => parseStoredLockoutUntil());
+  const [now, setNow] = useState(Date.now());
   const sessionExpiredReason = location.state?.reason === 'session-expired';
+  const isRateLimited = rateLimitResetAt > now;
+  const countdownLabel = isRateLimited ? formatCountdown(rateLimitResetAt - now) : '';
 
   useEffect(() => {
     if (isValidRole(forcedRole)) {
       setRole(forcedRole);
     }
   }, [forcedRole]);
+
+  useEffect(() => {
+    if (!rateLimitResetAt) {
+      localStorage.removeItem(AUTH_RATE_LIMIT_KEY);
+      setErrorMessage((current) => (
+        current.startsWith('Too many requests') ? '' : current
+      ));
+      return undefined;
+    }
+
+    if (rateLimitResetAt <= Date.now()) {
+      setRateLimitResetAt(0);
+      localStorage.removeItem(AUTH_RATE_LIMIT_KEY);
+      setErrorMessage((current) => (
+        current.startsWith('Too many requests') ? '' : current
+      ));
+      return undefined;
+    }
+
+    localStorage.setItem(AUTH_RATE_LIMIT_KEY, String(rateLimitResetAt));
+
+    const timerId = window.setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= rateLimitResetAt) {
+        setRateLimitResetAt(0);
+        localStorage.removeItem(AUTH_RATE_LIMIT_KEY);
+        setErrorMessage((current) => (
+          current.startsWith('Too many requests') ? '' : current
+        ));
+      }
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [rateLimitResetAt]);
 
   useEffect(() => {
     setEmail(ROLE_EMAIL_DEFAULTS[activeRole]);
@@ -79,6 +147,13 @@ export default function Login({ forcedRole = null, showRolePicker = true, pageTi
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (isRateLimited) {
+      const message = `Too many requests. Try again in ${countdownLabel}.`;
+      setErrorMessage(message);
+      notifyError('Login temporarily locked', message, 2400);
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage('');
 
@@ -98,8 +173,19 @@ export default function Login({ forcedRole = null, showRolePicker = true, pageTi
       notifySuccess('Signed in', `Welcome ${data.user?.firstName || data.user?.email || 'back'}.`, 2800);
       navigate(getRoleHomePath(data.user.role));
     } catch (error) {
-      const message = getApiMessage(error, 'Login failed');
-      setErrorMessage(message);
+      const isTooManyRequests = error?.response?.status === 429;
+      const message = isTooManyRequests
+        ? `Too many requests from this IP. Try again in ${formatCountdown(getRateLimitResetAt(error) - Date.now())}.`
+        : getApiMessage(error, 'Login failed');
+
+      if (isTooManyRequests) {
+        const resetAt = getRateLimitResetAt(error);
+        setRateLimitResetAt(resetAt);
+      }
+
+      if (!isTooManyRequests) {
+        setErrorMessage(message);
+      }
       notifyError('Login failed', message, 4200);
     } finally {
       setIsSubmitting(false);
@@ -128,8 +214,14 @@ export default function Login({ forcedRole = null, showRolePicker = true, pageTi
 
         <form className="form-grid" onSubmit={handleSubmit}>
           {sessionExpiredReason ? (
-            <div className="helper-text" style={{ color: 'var(--warning)', marginBottom: '-0.2rem' }}>
+            <div className="helper-text" style={{ color: 'var(--warning)', marginBottom: '-0.2rem', textAlign: 'center' }}>
               Your previous session ended. Sign in again to continue.
+            </div>
+          ) : null}
+
+          {isRateLimited ? (
+            <div className="helper-text" style={{ color: 'var(--warning)', marginBottom: '-0.2rem', textAlign: 'center' }}>
+              Too many requests from this IP. Try again in {countdownLabel}.
             </div>
           ) : null}
 
@@ -184,14 +276,14 @@ export default function Login({ forcedRole = null, showRolePicker = true, pageTi
             <span>Remember this device for 30 days</span>
           </label>
 
-          {errorMessage ? (
-            <div className="helper-text" style={{ color: 'var(--danger)' }}>
+          {!isRateLimited && errorMessage ? (
+            <div className="helper-text" style={{ color: 'var(--danger)', textAlign: 'center' }}>
               {errorMessage}
             </div>
           ) : null}
 
-          <button className="button-primary login-submit" disabled={isSubmitting} type="submit">
-            {isSubmitting ? 'Signing in...' : `Continue as ${ROLE_LABELS[activeRole]}`}
+          <button className="button-primary login-submit" disabled={isSubmitting || isRateLimited} type="submit">
+            {isSubmitting ? 'Signing in...' : isRateLimited ? `Try again in ${countdownLabel}` : `Continue as ${ROLE_LABELS[activeRole]}`}
           </button>
 
           <div className="helper-text" style={{ textAlign: 'center' }}>

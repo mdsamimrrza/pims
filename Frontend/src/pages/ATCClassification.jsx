@@ -474,7 +474,7 @@ export default function ATCClassification() {
               onClick={(event) => event.stopPropagation()}
               role="dialog"
             >
-              <div className="panel-head">
+              <div className="panel-head atc-monograph-head">
                 <div className="page-title">
                   <div className="section-title">
                     <span className="pill">{selectedNode?.code || 'ATC'}</span>

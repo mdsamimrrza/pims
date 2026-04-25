@@ -207,7 +207,7 @@ export default function Dashboard() {
   };
 
   return (
-    <section className="page">
+    <section className="page dashboard-page">
       {pageState.errorMessage ? (
         <div className="notice-banner">
           <div>
