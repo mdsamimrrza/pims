@@ -20,4 +20,8 @@ export const validateEnv = () => {
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`)
   }
+
+  if (process.env.ADMIN_SETUP_TOKEN && process.env.ADMIN_SETUP_TOKEN.length < 6) {
+    throw new Error('ADMIN_SETUP_TOKEN must be at least 6 characters long')
+  }
 }

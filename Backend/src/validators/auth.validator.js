@@ -24,6 +24,9 @@ export const validateSetupAdmin = createValidator((req) => {
   const body = req.body || {}
 
   requireNonEmptyString(errors, 'setupToken', body.setupToken)
+  if (body.setupToken && String(body.setupToken).length < 6) {
+    errors.push({ field: 'setupToken', message: 'setupToken must be at least 6 characters long' })
+  }
   requireNonEmptyString(errors, 'firstName', body.firstName)
   requireNonEmptyString(errors, 'lastName', body.lastName)
   requireEmail(errors, 'email', body.email)
