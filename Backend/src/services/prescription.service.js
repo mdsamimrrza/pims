@@ -222,12 +222,17 @@ export const createPrescription = async (payload) => {
     const existingPatientEmail = String(payload.patientEmail || payload.patient?.email || '').trim().toLowerCase()
 
     if (patient && !patient.userId && existingPatientEmail) {
-      patientPortal = await createPatientPortalAccount(patient._id, {
-        firstName: payload.patient?.firstName,
-        lastName: payload.patient?.lastName,
-        email: existingPatientEmail,
-        password: payload.patient?.password || generatePassword(),
-      })
+      try {
+        patientPortal = await createPatientPortalAccount(patient._id, {
+          firstName: payload.patient?.firstName,
+          lastName: payload.patient?.lastName,
+          email: existingPatientEmail,
+          password: payload.patient?.password || generatePassword(),
+        })
+      } catch (error) {
+        console.warn(`Failed to create patient portal for existing patient: ${error.message}`)
+        // Continue without portal account — prescription can still be submitted
+      }
     }
   } else {
     const sourcePatient = payload.patient || {}
@@ -269,12 +274,17 @@ export const createPrescription = async (payload) => {
         medicalHistory: sourcePatient.medicalHistory,
       })
 
-      patientPortal = await createPatientPortalAccount(patient._id, {
-        firstName: sourcePatient.firstName,
-        lastName: sourcePatient.lastName,
-        email: normalizedEmail,
-        password: sourcePatient.password || generatePassword(),
-      })
+      try {
+        patientPortal = await createPatientPortalAccount(patient._id, {
+          firstName: sourcePatient.firstName,
+          lastName: sourcePatient.lastName,
+          email: normalizedEmail,
+          password: sourcePatient.password || generatePassword(),
+        })
+      } catch (error) {
+        console.warn(`Failed to create patient portal for new patient: ${error.message}`)
+        // Continue without portal account — prescription can still be submitted
+      }
     }
   }
 
@@ -304,17 +314,56 @@ export const createPrescription = async (payload) => {
     pdfUrl: String(payload.pdfUrl || '').trim(),
   })
 
-  if (!isDraft && process.env.PHARMACY_NOTIFICATION_EMAIL) {
-    try {
-      await sendPrescriptionNotificationEmail({
-        to: process.env.PHARMACY_NOTIFICATION_EMAIL,
-        rxId: prescription.rxId,
-        patientName: patient.name,
-        doctorName: `${doctor.firstName} ${doctor.lastName}`.trim(),
-        isUrgent: prescription.isUrgent,
-      })
-    } catch (error) {
-      console.warn(`Failed to write prescription notification email for ${prescription.rxId}: ${error.message}`)
+  // Send emails asynchronously without blocking the response
+  if (!isDraft) {
+    // Notify pharmacy (with await for important emails)
+    if (process.env.PHARMACY_NOTIFICATION_EMAIL) {
+      try {
+        await sendPrescriptionNotificationEmail({
+          to: process.env.PHARMACY_NOTIFICATION_EMAIL,
+          rxId: prescription.rxId,
+          patientName: patient.name,
+          doctorName: `${doctor.firstName} ${doctor.lastName}`.trim(),
+          isUrgent: prescription.isUrgent,
+        })
+      } catch (error) {
+        console.warn(`Failed to send pharmacy notification for ${prescription.rxId}: ${error.message}`)
+      }
+    }
+
+    // Notify patient (asynchronously, don't block response)
+    if (patient.userId) {
+      const patientUser = await User.findById(patient.userId)
+      if (patientUser?.email) {
+        // Fire and forget — don't block the prescription response
+        setImmediate(() => {
+          sendPrescriptionNotificationEmail({
+            to: patientUser.email,
+            rxId: prescription.rxId,
+            patientName: patient.name,
+            doctorName: `${doctor.firstName} ${doctor.lastName}`.trim(),
+            isUrgent: prescription.isUrgent,
+          }).catch((error) => {
+            console.warn(`Failed to send patient notification for ${prescription.rxId}: ${error.message}`)
+          })
+        })
+      }
+    } else if (patientPortal?.patient?.userId) {
+      const patientUser = await User.findById(patientPortal.patient.userId)
+      if (patientUser?.email) {
+        // Fire and forget
+        setImmediate(() => {
+          sendPrescriptionNotificationEmail({
+            to: patientUser.email,
+            rxId: prescription.rxId,
+            patientName: patient.name,
+            doctorName: `${doctor.firstName} ${doctor.lastName}`.trim(),
+            isUrgent: prescription.isUrgent,
+          }).catch((error) => {
+            console.warn(`Failed to send patient notification for ${prescription.rxId}: ${error.message}`)
+          })
+        })
+      }
     }
   }
 
@@ -417,18 +466,40 @@ export const updateDraftPrescription = async (id, payload, actor) => {
     throw prescriptionNotFound()
   }
 
-  if (isSubmitting && process.env.PHARMACY_NOTIFICATION_EMAIL) {
-    try {
-      const patient = await Patient.findById(existing.patientId).lean()
-      await sendPrescriptionNotificationEmail({
-        to: process.env.PHARMACY_NOTIFICATION_EMAIL,
-        rxId: updated.rxId,
-        patientName: patient?.name || 'Patient',
-        doctorName: `${doctor.firstName} ${doctor.lastName}`.trim(),
-        isUrgent: updated.isUrgent,
-      })
-    } catch (err) {
-      console.warn(`Notification email failed for ${updated.rxId}: ${err.message}`)
+  if (isSubmitting) {
+    // Notify pharmacy with await (important email)
+    if (process.env.PHARMACY_NOTIFICATION_EMAIL) {
+      try {
+        const patient = await Patient.findById(existing.patientId).lean()
+        await sendPrescriptionNotificationEmail({
+          to: process.env.PHARMACY_NOTIFICATION_EMAIL,
+          rxId: updated.rxId,
+          patientName: patient?.name || 'Patient',
+          doctorName: `${doctor.firstName} ${doctor.lastName}`.trim(),
+          isUrgent: updated.isUrgent,
+        })
+      } catch (err) {
+        console.warn(`Notification email failed for ${updated.rxId}: ${err.message}`)
+      }
+    }
+
+    // Notify patient asynchronously (fire and forget)
+    const patient = await Patient.findById(existing.patientId)
+    if (patient?.userId) {
+      const patientUser = await User.findById(patient.userId)
+      if (patientUser?.email) {
+        setImmediate(() => {
+          sendPrescriptionNotificationEmail({
+            to: patientUser.email,
+            rxId: updated.rxId,
+            patientName: patient.name,
+            doctorName: `${doctor.firstName} ${doctor.lastName}`.trim(),
+            isUrgent: updated.isUrgent,
+          }).catch((error) => {
+            console.warn(`Failed to send patient notification for ${updated.rxId}: ${error.message}`)
+          })
+        })
+      }
     }
   }
 

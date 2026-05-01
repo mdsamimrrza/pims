@@ -405,6 +405,8 @@ export default function Prescription() {
       }
 
       setMessage(`Prescription ${createdPrescription?.rxId || ''} submitted to pharmacy successfully.`);
+      // Notify other views (e.g., dashboard) that prescriptions/patient data changed
+      try { window.dispatchEvent(new CustomEvent('pims:data:changed', { detail: { resource: 'prescriptions' } })); } catch (_) {}
       setItems([]);
       if (editId) {
         navigate('/prescription/new');
